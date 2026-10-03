@@ -1,0 +1,324 @@
+// Live Yoga Membership Platform - Prisma schema
+// SQLite is used as the project database (per environment). All provider
+// integrations (Razorpay, Google Meet, WhatsApp) are abstracted behind
+// adapter modules so the rest of the application stays provider-agnostic.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users & Auth
+// ---------------------------------------------------------------------------
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  emailVerified  Boolean  @default(false)
+  name           String
+  image          String?
+  phone          String?
+  whatsappNumber String?
+  role           String   @default("STUDENT") // STUDENT | INSTRUCTOR | ADMIN
+  status         String   @default("ACTIVE")  // ACTIVE | DISABLED
+  passwordHash   String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  subscriptions  Subscription[]
+  payments       Payment[]
+  whatsappMessages WhatsAppMessage[]
+  attendances    Attendance[]
+  feedbacks      ClassFeedback[]
+  sessions       Session[]
+  accounts       Account[]
+  auditLogsActor AuditLog[]
+  settings       AppSettings[]
+
+  @@index([role])
+  @@index([status])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  ipAddress String?
+  userAgent String?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Account {
+  id                String   @id @default(cuid())
+  userId            String
+  accountId         String
+  providerId        String
+  accessToken      String?
+  refreshToken      String?
+  accessTokenExpiresAt DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope             String?
+  idToken           String?
+  password          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([providerId, accountId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+// ---------------------------------------------------------------------------
+// Subscriptions & Payments (Razorpay-shaped)
+// ---------------------------------------------------------------------------
+
+model Subscription {
+  id                    String   @id @default(cuid())
+  userId                String
+  razorpaySubscriptionId String  @unique
+  razorpayPlanId        String
+  status                String   @default("CREATED") // CREATED | ACTIVE | PENDING | HALTED | CANCELLED | EXPIRED | FAILED
+  amount                Int      // minor units (paise) -> 50000 = ₹500
+  currency              String   @default("INR")
+  startDate             DateTime?
+  nextBillingDate       DateTime?
+  endDate               DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments              Payment[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Payment {
+  id               String   @id @default(cuid())
+  userId           String
+  subscriptionId   String?
+  razorpayPaymentId String @unique
+  amount           Int
+  currency         String   @default("INR")
+  status           String   @default("PENDING") // PENDING | CAPTURED | FAILED | REFUNDED
+  gatewayFee       Int      @default(0)
+  surcharge         Int      @default(0)
+  surchargeGst      Int      @default(0)
+  paidAt           DateTime?
+  createdAt        DateTime @default(now())
+
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription     Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([subscriptionId])
+}
+
+// ---------------------------------------------------------------------------
+// Scheduling
+// ---------------------------------------------------------------------------
+
+model ClassSchedule {
+  id        String   @id @default(cuid())
+  name      String
+  timezone  String   @default("Asia/Kolkata")
+  startTime String   // "HH:mm" 24h, local to timezone
+  endTime   String   // "HH:mm"
+  active    Boolean  @default(true)
+  monday    Boolean  @default(true)
+  tuesday   Boolean  @default(true)
+  wednesday Boolean  @default(true)
+  thursday  Boolean  @default(true)
+  friday    Boolean  @default(true)
+  saturday  Boolean  @default(true)
+  sunday    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  exceptions ClassException[]
+  classes    YogaClass[]
+
+  @@index([active])
+}
+
+model ClassException {
+  id         String   @id @default(cuid())
+  scheduleId String
+  date       String   // "YYYY-MM-DD"
+  type       String   @default("NO_CLASS") // NO_CLASS | SPECIAL
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  schedule   ClassSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, date])
+  @@index([date])
+}
+
+model YogaClass {
+  id              String   @id @default(cuid())
+  scheduleId     String
+  date           String   // "YYYY-MM-DD"
+  startTime      String   // "HH:mm"
+  endTime        String   // "HH:mm"
+  status         String   @default("PENDING_MEET") // PENDING_MEET | READY | CANCELLED | COMPLETED | FAILED
+  googleEventId  String?
+  meetUrl        String?
+  notes          String?  // instructor notes visible to attendees
+  reminderAt     DateTime?
+  reminderSentAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  schedule       ClassSchedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  whatsappMessages WhatsAppMessage[]
+  attendances     Attendance[]
+  feedbacks      ClassFeedback[]
+
+  @@unique([scheduleId, date])
+  @@index([date])
+  @@index([status])
+  @@index([reminderAt])
+}
+
+model WhatsAppMessage {
+  id                String   @id @default(cuid())
+  userId            String
+  classId          String?
+  templateName     String
+  providerMessageId String?
+  status            String   @default("QUEUED") // QUEUED | SENT | DELIVERED | READ | FAILED
+  sentAt           DateTime?
+  errorCode        String?
+  errorMessage     String?
+  createdAt        DateTime @default(now())
+
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  yogaClass        YogaClass? @relation(fields: [classId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([classId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Webhook idempotency & Audit
+// ---------------------------------------------------------------------------
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  provider    String   // razorpay | whatsapp | google
+  eventId     String
+  eventType   String
+  payloadHash String
+  status      String   @default("PENDING") // PENDING | PROCESSED | FAILED | IGNORED
+  errorMessage String?
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@unique([provider, eventId])
+  @@index([status])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String
+  metadata    String   // JSON string
+  createdAt   DateTime @default(now())
+
+  actor       User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// App settings (single-row key/value store used for config like plan id)
+// ---------------------------------------------------------------------------
+
+model AppSettings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+
+  updatedBy String?
+  updater   User?    @relation(fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@index([key])
+}
+
+// ---------------------------------------------------------------------------
+// Attendance — per-student, per-class check-in record.
+// Used to compute streaks and "classes attended" totals. An instructor/admin
+// marks a student as attended after a live class; the row is unique per
+// (userId, classId) so re-marking is idempotent.
+// ---------------------------------------------------------------------------
+
+model Attendance {
+  id        String   @id @default(cuid())
+  userId    String
+  classId   String
+  markedAt  DateTime @default(now())
+  markedBy  String?  // userId of the instructor/admin who recorded it
+  source    String   @default("INSTRUCTOR") // INSTRUCTOR | AUTO | ADMIN
+  note      String?
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  yogaClass YogaClass  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, classId])
+  @@index([userId])
+  @@index([classId])
+  @@index([markedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Class feedback — per-student, per-class rating + comment.
+// A student can rate a class after attending. The unique (userId, classId)
+// constraint ensures one rating per class per student.
+// ---------------------------------------------------------------------------
+
+model ClassFeedback {
+  id        String   @id @default(cuid())
+  userId    String
+  classId   String
+  rating    Int      // 1-5 stars
+  comment   String?  // optional text feedback
+  createdAt DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  yogaClass YogaClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, classId])
+  @@index([userId])
+  @@index([classId])
+  @@index([rating])
+}
