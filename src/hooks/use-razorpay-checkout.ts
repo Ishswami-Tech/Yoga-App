@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, apiGet, apiPost, ApiError } from "@/lib/api-client";
+import { APP_NAME } from "@/lib/brand";
 
 // Razorpay Standard Checkout for Subscriptions.
 //
@@ -178,7 +179,7 @@ export function useRazorpayCheckout(opts: {
     const rzp = new window.Razorpay({
       key: created.keyId,
       subscription_id: created.subscriptionId,
-      name: "Vishwayog",
+      name: APP_NAME,
       description: optsRef.current.description,
       prefill: {
         name: user?.name ?? undefined,

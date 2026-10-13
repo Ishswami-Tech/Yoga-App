@@ -27,6 +27,7 @@ import { ClassCountdown } from "./class-countdown";
 import { StreakCard } from "./streak-card";
 import { BadgesCard } from "./badges-card";
 import { SunFan } from "../art/sunrise";
+import { APP_NAME } from "@/lib/brand";
 
 type TodayClass = {
   id: string;
@@ -297,7 +298,7 @@ function JoinCard({
   return (
     <div className="space-y-4">
       <section
-        aria-label="Join Vishwayog"
+        aria-label={`Join ${APP_NAME}`}
         className="relative overflow-hidden rounded-3xl bg-sunrise-sky p-5 text-[#3B1F1A] shadow-lift"
       >
         <SunFan size={260} className="pointer-events-none absolute -right-24 -top-24" />
