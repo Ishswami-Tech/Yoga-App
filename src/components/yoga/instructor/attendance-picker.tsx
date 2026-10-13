@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { StatusChip } from "./shared";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -180,9 +180,9 @@ export function AttendancePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 font-display text-2xl font-semibold">
             <UserCheck className="h-5 w-5 text-primary" />
             Record attendance
           </DialogTitle>
@@ -192,19 +192,13 @@ export function AttendancePickerDialog({
         </DialogHeader>
 
         {/* Summary + bulk actions */}
-        <div className="flex items-center justify-between gap-2 pb-3 border-b border-border/40">
-          <Badge
-            variant="outline"
-            className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 gap-1"
-          >
-            <CheckCircle2 className="h-3 w-3" />
+        <div className="flex items-center justify-between gap-2 pb-3 border-b-2 border-dotted border-border">
+          <StatusChip tone="sage" icon={<CheckCircle2 />}>
             {attendedCount} / {roster.length} attended
-          </Badge>
+          </StatusChip>
           <div className="flex gap-1.5">
             <Button
-              size="sm"
               variant="outline"
-              className="text-emerald-700 border-emerald-600/40 hover:bg-emerald-500/10"
               disabled={markAllMut.isPending}
               onClick={() => markAllMut.mutate()}
             >
@@ -217,9 +211,8 @@ export function AttendancePickerDialog({
             </Button>
             {attendedCount > 0 && (
               <Button
-                size="sm"
                 variant="outline"
-                className="text-rose-700 border-rose-600/40 hover:bg-rose-500/10"
+                className="text-destructive border-destructive/60 hover:bg-destructive/10 hover:text-destructive"
                 disabled={clearAllMut.isPending}
                 onClick={() => clearAllMut.mutate()}
               >
@@ -250,7 +243,7 @@ export function AttendancePickerDialog({
           {q.isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-14 w-full rounded-lg" />
+                <Skeleton key={i} className="h-14 w-full rounded-2xl" />
               ))}
             </div>
           ) : q.isError ? (
@@ -259,7 +252,7 @@ export function AttendancePickerDialog({
             </p>
           ) : filtered.length === 0 ? (
             <div className="text-center py-10">
-              <Users className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
+              <Users className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">
                 {roster.length === 0
                   ? "No active members yet."
@@ -279,16 +272,16 @@ export function AttendancePickerDialog({
                     disabled={busy}
                     className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition ${
                       r.attended
-                        ? "border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10"
+                        ? "border-emerald-400 bg-emerald-400/20 hover:bg-emerald-400/30"
                         : "border-border bg-card hover:bg-accent/40"
                     } ${busy ? "opacity-60" : ""}`}
                   >
-                    <Avatar className="h-9 w-9 shrink-0">
+                    <Avatar className="h-10 w-10 shrink-0">
                       <AvatarFallback
                         className={
                           r.attended
-                            ? "bg-emerald-500/15 text-emerald-700 text-xs font-semibold"
-                            : "bg-muted text-muted-foreground text-xs font-semibold"
+                            ? "bg-emerald-400 text-ink font-display text-sm font-bold"
+                            : "bg-secondary text-secondary-foreground font-display text-sm font-bold"
                         }
                       >
                         {r.studentName
@@ -300,7 +293,7 @@ export function AttendancePickerDialog({
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">
+                      <p className="font-bold text-base truncate">
                         {r.studentName}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
@@ -308,10 +301,10 @@ export function AttendancePickerDialog({
                       </p>
                     </div>
                     <div
-                      className={`h-6 w-6 rounded-full grid place-items-center shrink-0 transition ${
+                      className={`h-7 w-7 rounded-full grid place-items-center shrink-0 transition ${
                         r.attended
-                          ? "bg-emerald-500 text-white"
-                          : "bg-muted text-muted-foreground border border-border"
+                          ? "bg-emerald-600 text-white"
+                          : "bg-card text-muted-foreground border-2 border-border"
                       }`}
                     >
                       {busy ? (
@@ -327,11 +320,11 @@ export function AttendancePickerDialog({
           )}
         </div>
 
-        <div className="pt-3 border-t border-border/40 flex items-center justify-between">
+        <div className="pt-3 border-t-2 border-dotted border-border flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
             Changes save instantly.
           </p>
-          <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Done
           </Button>
         </div>

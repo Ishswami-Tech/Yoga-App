@@ -1,33 +1,30 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { usePlan } from "@/hooks/use-plan";
+import { useQuery } from "@tanstack/react-query";
+import { useRazorpayCheckout } from "@/hooks/use-razorpay-checkout";
 import { useApp } from "@/lib/store";
-import { apiPost, apiGet } from "@/lib/api-client";
+import { apiGet } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { toast } from "sonner";
 import {
-  IndianRupee,
   Loader2,
   ShieldCheck,
+  AlertTriangle,
   Check,
   Video,
   MessageCircle,
   Lock,
   ArrowRight,
-  Sparkles,
+  RefreshCw,
+  CalendarDays,
+  Clock,
 } from "lucide-react";
 import { PublicShell } from "./shell";
-
-type Step = "review" | "checkout" | "processing" | "success" | "failed";
+import { LotusMark, Mandala, SunFan } from "../art/sunrise";
 
 export function Checkout() {
+  const plan = usePlan();
   const { openAuth, setView } = useApp();
-  const [step, setStep] = useState<Step>("review");
-  const [progress, setProgress] = useState(0);
-  const [paymentData, setPaymentData] = useState<any>(null);
 
   // Bootstrap session to know if user is logged in.
   const { data } = useQuery({
@@ -35,56 +32,22 @@ export function Checkout() {
     queryFn: () => apiGet<{ user: any }>("/api/auth/me"),
   });
 
-  // Create subscription (returns the data Razorpay Checkout needs).
-  const createMut = useMutation({
-    mutationFn: () => apiPost("/api/subscriptions/create", {}),
-    onSuccess: (d: any) => {
-      setPaymentData(d);
-      setStep("checkout");
-    },
-    onError: (e: any) => toast.error(e.message ?? "Failed to start checkout"),
+  const checkout = useRazorpayCheckout({
+    user: data?.user,
+    description: `Monthly membership, ${plan.display}/month`,
   });
-
-  // Simulate the customer completing Razorpay Checkout. The server then
-  // verifies the signature + Razorpay fires its webhook (which we simulate
-  // via /api/subscriptions/simulate which calls applyRazorpayEvent).
-  const payMut = useMutation({
-    mutationFn: () =>
-      apiPost("/api/subscriptions/simulate", {
-        razorpaySubscriptionId: paymentData?.razorpaySubscriptionId,
-      }),
-    onSuccess: () => {
-      setStep("processing");
-      setProgress(0);
-    },
-    onError: (e: any) => {
-      toast.error(e.message ?? "Payment failed");
-      setStep("failed");
-    },
-  });
-
-  // Poll the membership state while "processing" to detect the webhook-driven
-  // activation. The "payment succeeded on the browser" never grants
-  // membership by itself.
-  useEffect(() => {
-    if (step !== "processing") return;
-    let done = false;
-    const t = setInterval(async () => {
-      setProgress((p) => Math.min(p + 8, 95));
-      try {
-        const m = await apiGet<{ state: string }>("/api/subscription");
-        if (m.state === "ACTIVE" && !done) {
-          done = true;
-          clearInterval(t);
-          setProgress(100);
-          setTimeout(() => setStep("success"), 400);
-        }
-      } catch {
-        // ignore
-      }
-    }, 600);
-    return () => clearInterval(t);
-  }, [step]);
+  const { phase } = checkout;
+  const step: "review" | "processing" | "success" | "failed" | "unavailable" =
+    phase === "processing"
+      ? "processing"
+      : phase === "success"
+        ? "success"
+        : phase === "failed"
+          ? "failed"
+          : phase === "unavailable"
+            ? "unavailable"
+            : "review";
+  const busy = phase === "starting" || phase === "checkout";
 
   const features = [
     "Daily live yoga classes",
@@ -99,15 +62,15 @@ export function Checkout() {
       <PublicShell>
         <section className="container mx-auto px-4 py-16">
           <div className="max-w-md mx-auto text-center">
-            <div className="h-14 w-14 rounded-full bg-brand-gradient mx-auto grid place-items-center mb-4">
-              <Lock className="h-6 w-6 text-primary-foreground" />
+            <div className="mx-auto mb-5 w-fit">
+              <LotusMark size={64} />
             </div>
-            <h1 className="text-2xl font-bold mb-2">Sign in to subscribe</h1>
+            <h1 className="font-display text-3xl font-semibold mb-2">Sign in to subscribe</h1>
             <p className="text-muted-foreground mb-6">
-              You need an account before you can start the ₹500/month
+              You need an account before you can start the {plan.display}/month
               recurring membership.
             </p>
-            <div className="flex gap-2 justify-center">
+            <div className="flex gap-3 justify-center">
               <Button
                 variant="outline"
                 onClick={() => setView("landing")}
@@ -115,7 +78,6 @@ export function Checkout() {
                 Back to home
               </Button>
               <Button
-                className="bg-brand-gradient text-primary-foreground"
                 onClick={() => openAuth("register")}
               >
                 Create account
@@ -127,263 +89,245 @@ export function Checkout() {
     );
   }
 
+  const stepOrder = ["review", "processing", "success"];
+  const stepCur = stepOrder.indexOf(step === "failed" || step === "unavailable" ? "review" : step);
+  const heading =
+    step === "processing"
+      ? "Confirming your payment"
+      : step === "success"
+        ? "You are in. Welcome."
+        : "Confirm your membership";
+
   return (
     <PublicShell>
-      <section className="container mx-auto px-4 py-10">
-        <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-6">
-            <Badge variant="secondary" className="mb-2">
-              ₹500 / month · recurring
-            </Badge>
-            <h1 className="text-3xl font-bold">
-              Confirm your membership
+      <section className="container mx-auto px-4 py-8 sm:py-10">
+        <div className="max-w-xl mx-auto">
+          <div className="text-center mb-5">
+            <h1 className="font-display text-3xl sm:text-4xl font-semibold leading-tight">
+              {heading}
             </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Hi {data.user.name.split(" ")[0]} — review and subscribe. We never
-              activate membership from the browser alone; a verified Razorpay
-              webhook is required.
-            </p>
+            {step !== "success" && (
+              <p className="text-muted-foreground text-sm mt-2 max-w-md mx-auto">
+                Hi {data.user.name.split(" ")[0]}, review your plan and subscribe
+                securely with Razorpay.
+              </p>
+            )}
           </div>
 
           {/* STEPPER */}
-          <div className="flex items-center justify-center gap-2 mb-6 text-xs">
+          <ol
+            aria-label="Progress"
+            className="flex items-start mb-6 text-xs list-none p-0"
+          >
             {[
               { k: "review", label: "Review" },
-              { k: "checkout", label: "Checkout" },
-              { k: "processing", label: "Webhook" },
+              { k: "processing", label: "Confirm" },
               { k: "success", label: "Active" },
             ].map((s, i, arr) => {
-              const order = ["review", "checkout", "processing", "success"];
-              const cur = order.indexOf(step === "failed" ? "review" : step);
-              const idx = order.indexOf(s.k);
-              const active = idx <= cur;
+              const idx = stepOrder.indexOf(s.k);
+              const done = idx < stepCur;
+              const current = idx === stepCur;
               return (
-                <div key={s.k} className="flex items-center gap-2">
-                  <div
-                    className={`h-7 w-7 rounded-full grid place-items-center border-2 ${
-                      active
-                        ? "bg-brand-gradient border-transparent text-primary-foreground"
-                        : "bg-card border-border text-muted-foreground"
+                <li
+                  key={s.k}
+                  aria-current={current ? "step" : undefined}
+                  className="relative flex-1 flex flex-col items-center gap-1.5"
+                >
+                  {i < arr.length - 1 && (
+                    <span
+                      aria-hidden="true"
+                      className={`absolute left-1/2 top-[15px] w-full border-t-[3px] border-dotted ${
+                        done ? "border-[#8FAF8A]" : "border-border"
+                      }`}
+                    />
+                  )}
+                  <span
+                    className={`relative size-8 rounded-full grid place-items-center box-border ${
+                      done
+                        ? "bg-[#8FAF8A] text-[#1F3A24]"
+                        : current
+                          ? "bg-marigold border-[3px] border-foreground"
+                          : "bg-card border-[3px] border-dashed border-input"
                     }`}
                   >
-                    {active && idx < cur ? (
-                      <Check className="h-3.5 w-3.5" />
-                    ) : (
-                      <span>{i + 1}</span>
-                    )}
-                  </div>
+                    {done ? (
+                      <Check className="h-4 w-4" strokeWidth={3.4} />
+                    ) : current ? (
+                      <span className="size-2.5 rounded-full bg-foreground" />
+                    ) : null}
+                  </span>
                   <span
-                    className={
-                      active
-                        ? "text-foreground font-medium"
-                        : "text-muted-foreground"
-                    }
+                    className={`text-[13px] ${
+                      done || current
+                        ? "font-extrabold text-foreground"
+                        : "font-bold text-muted-foreground"
+                    }`}
                   >
                     {s.label}
                   </span>
-                  {i < arr.length - 1 && (
-                    <div className="w-8 h-px bg-border" />
-                  )}
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ol>
 
           {step === "review" && (
-            <Card>
-              <CardContent className="p-6 space-y-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="font-semibold text-lg">Monthly Membership</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Recurring · cancel anytime · Razorpay Subscriptions
-                    </p>
+            <div className="space-y-4">
+              <section
+                aria-label="Your plan"
+                className="relative overflow-hidden rounded-3xl bg-primary text-primary-foreground p-6 shadow-lift"
+              >
+                <Mandala
+                  size={210}
+                  rays
+                  ring="#FFE9CC"
+                  className="absolute -right-14 -bottom-20 opacity-60"
+                />
+                <div className="relative">
+                  <div className="text-[13px] font-extrabold uppercase tracking-[0.08em] opacity-90">
+                    Your plan
                   </div>
-                  <div className="text-right">
-                    <div className="flex items-baseline justify-end gap-1">
-                      <IndianRupee className="h-5 w-5 text-primary" />
-                      <span className="text-3xl font-bold">500</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">per month</p>
-                  </div>
-                </div>
-
-                <ul className="space-y-2">
-                  {features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm">
-                      <Check className="h-4 w-4 text-emerald-600" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="rounded-lg border border-dashed border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-                  <p className="font-medium text-foreground mb-1">
-                    Demo payment flow
-                  </p>
-                  Clicking <span className="font-semibold">Subscribe</span>{" "}
-                  creates a real Razorpay-style subscription record. The mock
-                  adapter then authorises the checkout and dispatches the
-                  verified webhook that activates your membership.
-                </div>
-
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                  Server-side signature verification · idempotent webhooks
-                </div>
-
-                <Button
-                  className="w-full bg-brand-gradient text-primary-foreground"
-                  disabled={createMut.isPending}
-                  onClick={() => createMut.mutate()}
-                >
-                  {createMut.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" /> Preparing
-                      checkout…
-                    </>
-                  ) : (
-                    <>Subscribe ₹500/month</>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {step === "checkout" && paymentData && (
-            <Card>
-              <CardContent className="p-6 space-y-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-9 w-9 rounded-lg bg-primary/10 grid place-items-center">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        Razorpay Checkout
-                      </p>
-                      <p className="font-semibold">Pay ₹500.00</p>
-                    </div>
-                  </div>
-                  <div className="text-right text-xs">
-                    <p className="text-muted-foreground">Subscription ID</p>
-                    <p className="font-mono">
-                      {paymentData.razorpaySubscriptionId}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Plan</span>
-                    <span>Monthly Membership</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Billing</span>
-                    <span>Recurring · every 30 days</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Amount</span>
-                    <span>₹500.00</span>
-                  </div>
-                  <div className="flex justify-between text-sm font-semibold border-t border-border pt-3">
-                    <span>Total today</span>
-                    <span className="flex items-center">
-                      <IndianRupee className="h-4 w-4" /> 500.00
+                  <h2 className="font-display text-2xl font-semibold mt-1 mb-1.5 leading-tight">
+                    Monthly Membership
+                  </h2>
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-display text-5xl font-bold leading-none">
+                      ₹{plan.rupees}
                     </span>
+                    <span className="text-[17px] font-bold">/ month</span>
+                  </div>
+                  <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-[13.5px] font-extrabold">
+                    <RefreshCw className="h-4 w-4" />
+                    Renews monthly
                   </div>
                 </div>
+              </section>
 
-                {/* Mock payment method selector */}
-                <div className="grid grid-cols-3 gap-2">
-                  {["UPI", "Cards", "Netbanking"].map((m, i) => (
-                    <button
-                      key={m}
-                      className={`rounded-lg border p-3 text-center text-sm ${
-                        i === 0
-                          ? "border-primary bg-primary/5"
-                          : "border-border bg-card hover:bg-secondary/40"
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
+              <Card className="rounded-3xl shadow-soft">
+                <CardContent className="px-5 py-2">
+                  <ul className="divide-y-2 divide-dotted divide-border">
+                    {features.map((f) => (
+                      <li key={f} className="flex items-center gap-3 py-3 text-[15px] font-bold">
+                        <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-success-soft text-success">
+                          <Check className="h-4 w-4" strokeWidth={3} />
+                        </span>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
 
-                <Button
-                  className="w-full bg-brand-gradient text-primary-foreground"
-                  disabled={payMut.isPending}
-                  onClick={() => payMut.mutate()}
-                >
-                  {payMut.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" /> Authorising…
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="h-4 w-4" /> Pay ₹500 &amp; subscribe
-                    </>
-                  )}
-                </Button>
-                <p className="text-center text-[11px] text-muted-foreground">
-                  By paying you authorise Razorpay to charge ₹500 every 30 days
-                  until you cancel.
+              <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                <ShieldCheck className="h-4 w-4 text-success" />
+                Secure payment by Razorpay · UPI autopay, cards and netbanking
+              </div>
+
+              <Button
+                size="lg"
+                className="w-full min-h-14 text-lg bg-foreground text-background hover:bg-foreground/90"
+                disabled={busy}
+                onClick={() => checkout.start()}
+              >
+                {busy ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Preparing
+                    checkout…
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-5 w-5" />
+                    Subscribe {plan.display}/month
+                  </>
+                )}
+              </Button>
+              {phase === "cancelled" && (
+                <p role="status" className="text-center text-sm font-bold text-foreground">
+                  Payment window closed. You have not been charged.
                 </p>
-              </CardContent>
-            </Card>
+              )}
+              <p className="text-center text-sm font-bold text-muted-foreground">
+                By subscribing you authorise Razorpay to charge {plan.display} every month
+                until you cancel. Membership starts once payment is confirmed.
+              </p>
+            </div>
           )}
 
           {step === "processing" && (
-            <Card>
-              <CardContent className="p-8 text-center space-y-4">
-                <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
-                <h2 className="font-semibold text-lg">
-                  Waiting for verified webhook…
-                </h2>
-                <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                  Your checkout succeeded but we never grant membership from
-                  the browser. We&apos;re waiting for the verified Razorpay
-                  webhook to mark your subscription ACTIVE.
-                </p>
-                <Progress value={progress} className="max-w-sm mx-auto" />
-                <p className="text-xs text-muted-foreground">
-                  {progress}% · signature verified ✓ · webhook received ✓
-                </p>
-              </CardContent>
-            </Card>
+            <div className="space-y-4">
+              <Card className="relative overflow-hidden rounded-3xl shadow-soft">
+                <CardContent className="p-8 text-center space-y-4">
+                  <div role="status" aria-label="Confirming payment" className="relative mx-auto size-36">
+                    <SunFan size={144} className="absolute inset-0 opacity-80" />
+                    <Loader2 className="absolute inset-0 m-auto h-24 w-24 animate-spin text-primary" strokeWidth={1.5} />
+                  </div>
+                  <h2 className="font-display text-3xl font-semibold leading-tight">
+                    Confirming your <span className="text-primary">payment.</span>
+                  </h2>
+                  <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                    We are confirming your payment with Razorpay and activating
+                    your membership.
+                  </p>
+                  {checkout.slow && (
+                    <div className="max-w-sm mx-auto space-y-3">
+                      <p role="status" className="text-sm font-bold">
+                        This is taking longer than usual. If money was deducted your
+                        membership will activate shortly; you do not need to pay again.
+                      </p>
+                      <Button variant="outline" onClick={() => void checkout.pollUntilActive()}>
+                        Check again
+                      </Button>
+                    </div>
+                  )}
+                  <div className="inline-flex items-center gap-2 min-h-11 rounded-full bg-background px-5 text-sm font-extrabold shadow-soft">
+                    <Clock className="h-5 w-5 text-primary" />
+                    This usually takes a few seconds.
+                  </div>
+                </CardContent>
+              </Card>
+              <p className="rounded-3xl bg-card shadow-soft p-4 text-sm font-semibold">
+                Please do not close this screen or press back while we confirm.
+              </p>
+            </div>
           )}
 
           {step === "success" && (
-            <Card className="border-emerald-500/40">
-              <CardContent className="p-8 text-center space-y-4">
-                <div className="h-14 w-14 rounded-full bg-emerald-500 mx-auto grid place-items-center">
-                  <Check className="h-7 w-7 text-white" />
+            <Card className="relative overflow-hidden rounded-3xl shadow-soft">
+              <div aria-hidden="true" className="h-28 bg-sunrise-sky" />
+              <CardContent className="p-8 pt-0 text-center space-y-4 -mt-8">
+                <div className="size-16 rounded-full bg-[#8FAF8A] text-[#1F3A24] mx-auto grid place-items-center border-4 border-card">
+                  <Check className="h-8 w-8" strokeWidth={3.4} />
                 </div>
-                <h2 className="text-2xl font-bold">Membership active! 🧘</h2>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#8FAF8A] px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-[#1F3A24]">
+                  Membership active
+                </span>
+                <h2 className="font-display text-3xl font-semibold">
+                  You are in. <span className="text-primary">Welcome.</span>
+                </h2>
                 <p className="text-muted-foreground">
                   You&apos;re all set. You&apos;ll receive a WhatsApp reminder 15
                   minutes before each class.
                 </p>
-                <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto pt-4">
-                  <div className="rounded-lg bg-card border border-border p-3">
+                <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto pt-2">
+                  <div className="rounded-2xl bg-muted/60 p-3">
                     <Video className="h-5 w-5 mx-auto text-primary mb-1" />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs font-bold text-muted-foreground">
                       Daily Meet
                     </p>
                   </div>
-                  <div className="rounded-lg bg-card border border-border p-3">
+                  <div className="rounded-2xl bg-muted/60 p-3">
                     <MessageCircle className="h-5 w-5 mx-auto text-primary mb-1" />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs font-bold text-muted-foreground">
                       WhatsApp
                     </p>
                   </div>
-                  <div className="rounded-lg bg-card border border-border p-3">
-                    <ShieldCheck className="h-5 w-5 mx-auto text-primary mb-1" />
-                    <p className="text-[11px] text-muted-foreground">Secured</p>
+                  <div className="rounded-2xl bg-muted/60 p-3">
+                    <CalendarDays className="h-5 w-5 mx-auto text-primary mb-1" />
+                    <p className="text-xs font-bold text-muted-foreground">Secured</p>
                   </div>
                 </div>
                 <Button
-                  className="bg-brand-gradient text-primary-foreground"
+                  size="lg"
+                  className="w-full min-h-14 text-lg"
                   onClick={() => setView("student-dashboard")}
                 >
                   Go to dashboard
@@ -394,17 +338,29 @@ export function Checkout() {
           )}
 
           {step === "failed" && (
-            <Card className="border-destructive">
+            <Card className="rounded-3xl border-2 border-destructive shadow-soft">
               <CardContent className="p-8 text-center space-y-4">
-                <h2 className="text-xl font-bold">Payment failed</h2>
-                <p className="text-muted-foreground">
-                  No charge was made. You can try again.
+                <h2 className="font-display text-2xl font-semibold">Payment not completed</h2>
+                <p role="alert" className="text-muted-foreground">
+                  {checkout.message ?? "Something went wrong with the payment."} You can try again.
                 </p>
-                <Button
-                  variant="outline"
-                  onClick={() => setStep("review")}
-                >
+                <Button variant="outline" onClick={() => checkout.reset()}>
                   Try again
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {step === "unavailable" && (
+            <Card className="rounded-3xl border-2 border-dashed shadow-soft">
+              <CardContent className="p-8 text-center space-y-4">
+                <AlertTriangle className="h-8 w-8 mx-auto text-primary" />
+                <h2 className="font-display text-2xl font-semibold">Payments are temporarily unavailable</h2>
+                <p role="alert" className="text-muted-foreground">
+                  We cannot take payments right now. You have not been charged. Please try again a little later.
+                </p>
+                <Button variant="outline" onClick={() => checkout.reset()}>
+                  Back
                 </Button>
               </CardContent>
             </Card>

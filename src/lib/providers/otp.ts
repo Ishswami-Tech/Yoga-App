@@ -1,105 +1,132 @@
-// OTP (one-time password) service for WhatsApp login.
+// Database-backed WhatsApp OTP service.
 //
-// Generates 6-digit codes, stores them in-memory with a 5-minute expiry,
-// and verifies them. In production this would use a distributed cache
-// (Redis) or the database; for the sandbox we use an in-memory Map.
-//
-// The OTP is "sent" via the WhatsApp adapter — in production this would
-// call the Meta WhatsApp Business Cloud API to deliver the code as a
-// text message. In the mock adapter, the code is just returned (and
-// logged to the console) so the dev flow can be exercised end-to-end.
+// - 6-digit codes from crypto.randomInt, stored only as HMAC-SHA256(AUTH_SECRET)
+// - 5 minute expiry, single use, max 5 verify attempts
+// - 30s resend cooldown, max 5 sends/hour per phone and per IP (OtpCode is the authority)
+// - the code is never returned to callers other than via the WhatsApp message
 
+import { createHmac, randomInt, timingSafeEqual } from "crypto";
+import { db } from "@/lib/db";
+import { requireAuthSecret } from "@/lib/auth-secret";
 import { whatsapp } from "./whatsapp";
 
-// In-memory OTP store: phone -> { code, expiresAt, attempts }
-const otpStore = new Map<string, { code: string; expiresAt: number; attempts: number }>();
+export const OTP_TTL_MS = 5 * 60 * 1000;
+export const OTP_RESEND_COOLDOWN_MS = 30 * 1000;
+export const OTP_MAX_SENDS_PER_HOUR = 5;
+export const OTP_MAX_ATTEMPTS = 5;
+const HOUR_MS = 60 * 60 * 1000;
 
-const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const OTP_RESEND_COOLDOWN_MS = 30 * 1000; // 30 seconds between sends
-const MAX_ATTEMPTS = 5;
+export type OtpPurpose = "LOGIN" | "REGISTER";
 
-const lastSentAt = new Map<string, number>();
-
-function generateCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+function hashCode(phone: string, code: string): string {
+  return createHmac("sha256", requireAuthSecret()).update(`otp:${phone}:${code}`).digest("hex");
 }
 
-export type SendOtpResult = {
-  ok: boolean;
-  error?: string;
-  // In dev/mock mode, the code is returned so the UI can display it.
-  // In production this would NEVER be returned to the client.
-  devCode?: string;
-};
+function safeEqualHex(a: string, b: string): boolean {
+  const ab = Buffer.from(a, "hex");
+  const bb = Buffer.from(b, "hex");
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
 
-export async function sendOtp(phone: string): Promise<SendOtpResult> {
-  // Normalize phone
-  const normalized = phone.replace(/[\s-]/g, "");
-
-  // Rate limit: prevent resending within 30s
-  const lastSent = lastSentAt.get(normalized);
-  if (lastSent && Date.now() - lastSent < OTP_RESEND_COOLDOWN_MS) {
-    const waitSec = Math.ceil((OTP_RESEND_COOLDOWN_MS - (Date.now() - lastSent)) / 1000);
-    return {
-      ok: false,
-      error: `Please wait ${waitSec}s before requesting another code.`,
+export type SendOtpResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "COOLDOWN" | "RATE_LIMITED" | "NOT_CONFIGURED" | "DELIVERY_FAILED";
+      error: string;
+      retryAfterSec?: number;
     };
+
+/** `phone` must already be canonical E.164 digits (see lib/phone.ts). */
+export async function sendOtp(opts: {
+  phone: string;
+  purpose: OtpPurpose;
+  ip?: string | null;
+}): Promise<SendOtpResult> {
+  const { phone, purpose } = opts;
+  const ip = opts.ip ?? null;
+  const now = Date.now();
+
+  // Opportunistic cleanup of old rows (keep the last 2h so the hourly counters stay accurate).
+  db.otpCode
+    .deleteMany({ where: { createdAt: { lt: new Date(now - 2 * HOUR_MS) } } })
+    .catch(() => {});
+
+  const hourAgo = new Date(now - HOUR_MS);
+  const last = await db.otpCode.findFirst({ where: { phone }, orderBy: { createdAt: "desc" } });
+  if (last) {
+    const age = now - last.createdAt.getTime();
+    if (age < OTP_RESEND_COOLDOWN_MS) {
+      const wait = Math.ceil((OTP_RESEND_COOLDOWN_MS - age) / 1000);
+      return { ok: false, reason: "COOLDOWN", error: `Please wait ${wait}s before requesting another code.`, retryAfterSec: wait };
+    }
+  }
+  const [phoneCount, ipCount] = await Promise.all([
+    db.otpCode.count({ where: { phone, createdAt: { gte: hourAgo } } }),
+    ip ? db.otpCode.count({ where: { ip, createdAt: { gte: hourAgo } } }) : Promise.resolve(0),
+  ]);
+  if (phoneCount >= OTP_MAX_SENDS_PER_HOUR || ipCount >= OTP_MAX_SENDS_PER_HOUR) {
+    return { ok: false, reason: "RATE_LIMITED", error: "Too many code requests. Please try again later.", retryAfterSec: 600 };
   }
 
-  const code = generateCode();
-  const expiresAt = Date.now() + OTP_TTL_MS;
-
-  otpStore.set(normalized, { code, expiresAt, attempts: 0 });
-  lastSentAt.set(normalized, Date.now());
-
-  // "Send" the OTP via WhatsApp — in the mock adapter this is a no-op
-  // that just returns success. The code is returned here for dev display.
-  await whatsapp.sendClassReminder({
-    toWhatsapp: normalized,
-    templateName: "otp_login",
-    studentName: "Yoga Student",
-    classTime: "—",
-    meetUrl: `Your Prana Live Yoga login code is ${code}`,
-    className: "OTP Login",
+  const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+  const row = await db.otpCode.create({
+    data: {
+      phone,
+      codeHash: hashCode(phone, code),
+      purpose,
+      expiresAt: new Date(now + OTP_TTL_MS),
+      ip,
+    },
+  });
+  // Only the newest code is valid.
+  await db.otpCode.updateMany({
+    where: { phone, consumedAt: null, id: { not: row.id } },
+    data: { consumedAt: new Date() },
   });
 
-  return {
-    ok: true,
-    devCode: code, // ONLY in mock mode — remove in production
-  };
+  const sent = await whatsapp.sendOtp({ to: phone, code });
+  if (sent.status === "FAILED") {
+    await db.otpCode.update({ where: { id: row.id }, data: { consumedAt: new Date() } }).catch(() => {});
+    console.error("[otp] delivery failed", sent.errorCode, sent.errorMessage);
+    if (sent.errorCode === "NOT_CONFIGURED") {
+      return { ok: false, reason: "NOT_CONFIGURED", error: "Sign-in is temporarily unavailable" };
+    }
+    return { ok: false, reason: "DELIVERY_FAILED", error: "We couldn't send the code on WhatsApp. Please try again." };
+  }
+  return { ok: true };
 }
 
-export type VerifyOtpResult = {
-  ok: boolean;
-  error?: string;
-};
+export type VerifyOtpResult =
+  | { ok: true; purpose: OtpPurpose }
+  | { ok: false; error: string };
 
-export function verifyOtp(phone: string, code: string): VerifyOtpResult {
-  const normalized = phone.replace(/[\s-]/g, "");
-  const entry = otpStore.get(normalized);
+const GENERIC = "Incorrect or expired code. Please try again or request a new one.";
 
-  if (!entry) {
-    return { ok: false, error: "No code was sent to this number. Please request a new one." };
-  }
-
-  if (Date.now() > entry.expiresAt) {
-    otpStore.delete(normalized);
-    return { ok: false, error: "The code has expired. Please request a new one." };
-  }
-
-  if (entry.attempts >= MAX_ATTEMPTS) {
-    otpStore.delete(normalized);
+export async function verifyOtp(phone: string, code: string): Promise<VerifyOtpResult> {
+  const row = await db.otpCode.findFirst({
+    where: { phone, consumedAt: null },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!row || row.expiresAt.getTime() < Date.now()) return { ok: false, error: GENERIC };
+  if (row.attempts >= OTP_MAX_ATTEMPTS) {
     return { ok: false, error: "Too many attempts. Please request a new code." };
   }
+  // Count the attempt atomically before comparing.
+  const bumped = await db.otpCode.updateMany({
+    where: { id: row.id, consumedAt: null, attempts: { lt: OTP_MAX_ATTEMPTS } },
+    data: { attempts: { increment: 1 } },
+  });
+  if (bumped.count !== 1) return { ok: false, error: GENERIC };
 
-  entry.attempts++;
-
-  if (entry.code !== code.trim()) {
-    return { ok: false, error: "Incorrect code. Please try again." };
+  if (!safeEqualHex(hashCode(phone, code.trim()), row.codeHash)) {
+    return { ok: false, error: GENERIC };
   }
-
-  // Success — clean up
-  otpStore.delete(normalized);
-  lastSentAt.delete(normalized);
-  return { ok: true };
+  // Single use: only one concurrent verifier can win.
+  const consumed = await db.otpCode.updateMany({
+    where: { id: row.id, consumedAt: null },
+    data: { consumedAt: new Date() },
+  });
+  if (consumed.count !== 1) return { ok: false, error: GENERIC };
+  return { ok: true, purpose: (row.purpose as OtpPurpose) ?? "LOGIN" };
 }

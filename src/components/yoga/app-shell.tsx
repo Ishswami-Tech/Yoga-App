@@ -16,11 +16,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiPost } from "@/lib/api-client";
-import { Moon, Sun, LogOut, ChevronDown, User as UserIcon, Sparkles } from "lucide-react";
+import { authClient } from "@/lib/better-auth-client";
+import { Moon, Sun, LogOut, ChevronDown, User as UserIcon } from "lucide-react";
+import { LotusMark, Mandala } from "@/components/yoga/art/sunrise";
 import { useTheme } from "next-themes";
+import { usePlan } from "@/hooks/use-plan";
 import { toast } from "sonner";
 import { NotificationsBell } from "@/components/yoga/admin/notifications-bell";
 
+import { APP_NAME } from "@/lib/brand";
 export type NavItem = {
   view: View;
   label: string;
@@ -42,9 +46,14 @@ export function AppShell({
   const { user, view, setView, set } = useApp();
   const { theme, setTheme } = useTheme();
   const qc = useQueryClient();
+  const plan = usePlan();
 
   const logoutMut = useMutation({
-    mutationFn: () => apiPost("/api/auth/logout", {}),
+    mutationFn: async () => {
+      // Clear both the Better Auth session and the legacy session cookie.
+      await authClient.signOut().catch(() => {});
+      return apiPost("/api/auth/logout", {});
+    },
     onSuccess: () => {
       set({ user: null, membership: null, view: "landing" });
       qc.invalidateQueries({ queryKey: ["me"] });
@@ -64,17 +73,15 @@ export function AppShell({
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur">
+      <header className="sticky top-0 z-40 bg-secondary/90 backdrop-blur shadow-[0_6px_20px_-12px_rgb(59_31_26/0.35)]">
         <div className="flex h-16 px-4 items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="grid place-items-center h-9 w-9 rounded-full bg-brand-gradient text-primary-foreground shadow-sm shrink-0">
-              <Sparkles className="h-5 w-5" />
-            </span>
+            <LotusMark size={40} className="shrink-0" />
             <div className="min-w-0">
-              <p className="text-sm font-semibold tracking-tight truncate">
-                {brand}
+              <p className="font-display text-lg font-semibold tracking-tight truncate">
+                {APP_NAME}
               </p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs font-semibold text-muted-foreground">
                 {role === "ADMIN"
                   ? "Admin console"
                   : role === "INSTRUCTOR"
@@ -99,7 +106,7 @@ export function AppShell({
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2 px-2">
                   <Avatar className="h-7 w-7">
-                    <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                    <AvatarFallback className="bg-accent text-foreground text-xs font-bold">
                       {initials}
                     </AvatarFallback>
                   </Avatar>
@@ -157,7 +164,7 @@ export function AppShell({
 
       <div className="flex-1 flex">
         {/* Sidebar (desktop) */}
-        <aside className="hidden md:flex w-60 shrink-0 border-r border-border/60 bg-secondary/20 flex-col">
+        <aside className="hidden md:flex w-60 shrink-0 bg-card/70 flex-col">
           <nav className="p-3 space-y-1 flex-1">
             {navItems.map((item) => {
               const active = view === item.view;
@@ -165,10 +172,10 @@ export function AppShell({
                 <button
                   key={item.view}
                   onClick={() => setView(item.view)}
-                  className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                  className={`w-full min-h-11 flex items-center gap-3 rounded-full px-4 py-2 text-sm transition ${
                     active
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+                      ? "bg-[#F5A623] text-[#3B1F1A] font-bold shadow-soft"
+                      : "text-foreground/80 font-semibold hover:bg-secondary hover:text-foreground"
                   }`}
                 >
                   <item.icon className="h-4 w-4 shrink-0" />
@@ -183,15 +190,16 @@ export function AppShell({
             })}
           </nav>
           <div className="p-3">
-            <div className="rounded-lg bg-brand-gradient/10 p-3 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground mb-1">Prana Live Yoga</p>
-              <p>Daily 7:00 AM IST · ₹500/month</p>
+            <div className="relative overflow-hidden rounded-2xl bg-secondary p-3 text-xs text-foreground/80">
+              <Mandala size={80} className="pointer-events-none absolute -right-6 -top-6 opacity-70" />
+              <p className="font-medium text-foreground mb-1">{APP_NAME}</p>
+              <p>Live online classes · {plan.display}/month</p>
             </div>
           </div>
         </aside>
 
         {/* Mobile bottom nav */}
-        <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border/60 bg-background/95 backdrop-blur">
+        <nav aria-label="Main" className="md:hidden fixed bottom-0 inset-x-0 z-30 rounded-t-[1.75rem] bg-card/95 backdrop-blur shadow-[0_-8px_24px_-10px_rgb(59_31_26/0.2)]">
           <div className="flex overflow-x-auto scroll-soft">
             {navItems.map((item) => {
               const active = view === item.view;
@@ -199,14 +207,17 @@ export function AppShell({
                 <button
                   key={item.view}
                   onClick={() => setView(item.view)}
-                  className={`flex-1 min-w-[64px] flex flex-col items-center gap-1 py-2 text-[10px] ${
+                  aria-current={active ? "page" : undefined}
+                  className={`flex-1 min-w-[68px] min-h-[56px] flex flex-col items-center justify-center gap-0.5 py-1.5 text-xs ${
                     active
-                      ? "text-primary"
-                      : "text-muted-foreground"
+                      ? "text-foreground font-extrabold"
+                      : "text-muted-foreground font-bold"
                   }`}
                 >
-                  <item.icon className="h-5 w-5" />
-                  <span className="truncate max-w-[60px]">{item.label}</span>
+                  <span className={`flex h-7 w-14 items-center justify-center rounded-full ${active ? "bg-[#F5A623] text-[#3B1F1A]" : ""}`}>
+                    <item.icon className="h-5 w-5" />
+                  </span>
+                  <span className="truncate max-w-[64px]">{item.label}</span>
                 </button>
               );
             })}
@@ -219,7 +230,7 @@ export function AppShell({
       </div>
 
       <footer className="md:hidden text-center text-[10px] text-muted-foreground py-2 border-t border-border/40 bg-secondary/20">
-        Prana Live Yoga · ₹500/month
+        {APP_NAME} · {plan.display}/month
       </footer>
     </div>
   );

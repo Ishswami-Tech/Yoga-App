@@ -51,6 +51,10 @@ export async function getReminderMinutesBefore(): Promise<number> {
   return Number.isFinite(n) && n >= 1 && n <= 180 ? n : 15;
 }
 
+// Soft time budget per run (the worker route has maxDuration = 60s). Anything
+// not reached is picked up by the next run; the job is idempotent.
+const JOB_BUDGET_MS = 45_000;
+
 export async function generateClasses(opts?: {
   lookAheadDaysOverride?: number;
   todayOverride?: Date;
@@ -58,6 +62,8 @@ export async function generateClasses(opts?: {
   const lookAhead =
     opts?.lookAheadDaysOverride ?? (await getLookAheadDays());
   const today = opts?.todayOverride ?? new Date();
+  const deadline = Date.now() + JOB_BUDGET_MS;
+  const reminderMinutes = await getReminderMinutesBefore();
 
   const result: GenerationResult = {
     checked: 0,
@@ -75,6 +81,10 @@ export async function generateClasses(opts?: {
   for (const schedule of schedules) {
     let createdForThis = 0;
     for (let i = 0; i <= lookAhead; i++) {
+      if (Date.now() > deadline) {
+        result.errors.push("Time budget reached; remaining days will be processed on the next run");
+        return result;
+      }
       const day = addDays(today, i);
       const dateStr = istDateString(day);
       const weekday = istWeekday(day);
@@ -100,20 +110,18 @@ export async function generateClasses(opts?: {
       const weekdayFlag = weekdayFlagFor(schedule, weekday);
       if (!weekdayFlag) continue;
 
-      // Upsert the class row keyed by (scheduleId, date).
+      // Upsert the class row keyed by (scheduleId, date). Existing rows keep
+      // their status (READY/COMPLETED/CANCELLED/FAILED); only a not-yet-sent
+      // reminder time is refreshed in case the admin changed the schedule.
       const reminderAt = minusMinutes(
         istDateTime(dateStr, schedule.startTime),
-        await getReminderMinutesBefore()
+        reminderMinutes
       );
       const cls = await db.yogaClass.upsert({
         where: {
           scheduleId_date: { scheduleId: schedule.id, date: dateStr },
         },
-        update: {
-          // keep reminderAt fresh in case admin changed schedule time
-          reminderAt,
-          status: "PENDING_MEET",
-        },
+        update: {},
         create: {
           scheduleId: schedule.id,
           date: dateStr,
@@ -123,10 +131,14 @@ export async function generateClasses(opts?: {
           reminderAt,
         },
       });
+      if (!cls.reminderSentAt && cls.reminderAt?.getTime() !== reminderAt.getTime()) {
+        await db.yogaClass.update({ where: { id: cls.id }, data: { reminderAt } });
+      }
 
-      if (cls.status === "CANCELLED") continue;
+      if (cls.status === "CANCELLED" || cls.status === "COMPLETED") continue;
 
       if (!cls.meetUrl || !cls.googleEventId) {
+        // PENDING_MEET and FAILED classes are both (re)tried on every run.
         try {
           const created = await googleMeet.createMeetForClass({
             scheduleId: schedule.id,
@@ -142,6 +154,7 @@ export async function generateClasses(opts?: {
               googleEventId: created.googleEventId,
               meetUrl: created.meetUrl,
               status: "READY",
+              errorMessage: null,
             },
           });
           result.createdMeets++;
@@ -151,11 +164,15 @@ export async function generateClasses(opts?: {
           result.errors.push(
             `Schedule ${schedule.name} ${dateStr}: ${msg}`
           );
+          await db.yogaClass.update({
+            where: { id: cls.id },
+            data: { status: "FAILED", errorMessage: msg.slice(0, 500) },
+          });
         }
       } else if (cls.status !== "READY") {
         await db.yogaClass.update({
           where: { id: cls.id },
-          data: { status: "READY" },
+          data: { status: "READY", errorMessage: null },
         });
       }
     }

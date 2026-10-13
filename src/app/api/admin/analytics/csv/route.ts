@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/lib/brand";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
@@ -88,7 +89,7 @@ export async function GET() {
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
 
-    rows.push("# Prana Live Yoga — Analytics Export");
+    rows.push(`# ${APP_NAME} — Analytics Export`);
     rows.push(`# Generated: ${now.toISOString()}`);
     rows.push("");
 

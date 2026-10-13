@@ -12,16 +12,14 @@ const verifySchema = z.object({
   razorpaySignature: z.string().min(1),
 });
 
-// Server-side verification of the Checkout result. The browser is never
-// trusted; this only confirms the signature so the client can show a
-// success screen. The actual state change happens when the verified
-// Razorpay webhook arrives.
+// Server-side verification of the Checkout result. The browser is never trusted: the signature
+// is verified, then the subscription is fetched from the Razorpay API before it is marked ACTIVE.
 export async function POST(req: NextRequest) {
   return run(async () => {
-    await requireAuth();
+    const user = await requireAuth();
     const body = await req.json().catch(() => ({}));
     const parsed = verifySchema.safeParse(body);
     if (!parsed.success) return fail("Invalid verification payload", 422);
-    return verifyCheckout(parsed.data);
+    return verifyCheckout({ userId: user.id, ...parsed.data });
   });
 }

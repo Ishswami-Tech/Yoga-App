@@ -18,7 +18,7 @@
 //   - Classes that haven't happened yet (future) are also skipped.
 
 import { db } from "@/lib/db";
-import { istDateString } from "./scheduling";
+import { istDateString, istDateTime } from "./scheduling";
 
 export type AttendanceSummary = {
   currentStreak: number;
@@ -82,6 +82,8 @@ export async function getAttendanceSummary(userId: string): Promise<AttendanceSu
   for (const date of classDayDates) {
     if (attendedDates.has(date)) {
       currentStreak++;
+    } else if (date === todayStr) {
+      continue; // today's class may not have happened / been marked yet
     } else {
       break;
     }
@@ -183,4 +185,29 @@ export async function bulkMarkAttendance(opts: {
     created++;
   }
   return { created, skipped };
+}
+
+// Prisma `where` for students whose membership covered the class time: an ACTIVE
+// subscription that started before the class ended, or a subscription in any other
+// state whose paid period (endDate) reaches the class start.
+export function eligibleStudentsWhere(cls: { date: string; startTime: string; endTime: string }) {
+  const classStart = istDateTime(cls.date, cls.startTime);
+  const classEnd = istDateTime(cls.date, cls.endTime);
+  return {
+    role: "STUDENT",
+    status: "ACTIVE",
+    subscriptions: {
+      some: {
+        AND: [
+          { OR: [{ startDate: null }, { startDate: { lte: classEnd } }] },
+          {
+            OR: [
+              { status: "ACTIVE" },
+              { status: { in: ["CANCELLED", "HALTED", "EXPIRED"] }, endDate: { gte: classStart } },
+            ],
+          },
+        ],
+      },
+    },
+  };
 }

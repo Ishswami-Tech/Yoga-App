@@ -14,8 +14,8 @@ export async function GET() {
     const map: Record<string, string> = {};
     for (const r of rows) map[r.key] = r.value;
     return NextResponse.json({
-      razorpayPlanId: map.razorpayPlanId ?? "plan_yoga_monthly_500",
-      razorpayPlanAmount: parseInt(map.razorpayPlanAmount ?? "50000", 10),
+      razorpayPlanId: map.razorpayPlanId ?? "plan_yoga_monthly",
+      razorpayPlanAmount: parseInt(map.razorpayPlanAmount ?? "150000", 10),
       razorpayPlanCurrency: map.razorpayPlanCurrency ?? "INR",
       whatsappTemplate: map.whatsappTemplate ?? "yoga_class_reminder_v1",
       lookAheadDays: parseInt(map.lookAheadDays ?? "2", 10),
@@ -32,7 +32,7 @@ export async function PUT(req: NextRequest) {
     if (!parsed.success) return fromZodError(parsed.error);
     const entries: [string, string | number | undefined][] = [
       ["razorpayPlanId", parsed.data.razorpayPlanId],
-      ["razorpayPlanAmount", parsed.data.razorpayPlanAmount?.toString()],
+      // razorpayPlanAmount is managed via /api/admin/pricing; ignored here.
       ["razorpayPlanCurrency", parsed.data.razorpayPlanCurrency],
       ["whatsappTemplate", parsed.data.whatsappTemplate],
       ["lookAheadDays", parsed.data.lookAheadDays?.toString()],
@@ -53,7 +53,7 @@ export async function PUT(req: NextRequest) {
       action: "SETTINGS_UPDATE",
       entityType: "AppSettings",
       entityId: "global",
-      metadata: parsed.data,
+      metadata: { ...parsed.data, razorpayPlanAmount: undefined },
     });
     return NextResponse.json({ ok: true });
   });

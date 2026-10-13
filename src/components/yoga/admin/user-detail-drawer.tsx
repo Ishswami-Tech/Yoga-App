@@ -12,7 +12,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Mail,
   Phone,
@@ -26,11 +25,10 @@ import {
   Copy,
   Check,
   ExternalLink,
-  IndianRupee,
-  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatINR, prettyDate } from "@/components/yoga/student/format";
+import { AdminRings, MembershipRings } from "@/components/yoga/art/admin-art";
 
 type UserDetail = {
   user: {
@@ -104,6 +102,10 @@ export function UserDetailDrawer({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto scroll-soft p-0">
+        <SheetHeader className="sr-only">
+          <SheetTitle>User details</SheetTitle>
+          <SheetDescription>Profile, practice, membership and payments</SheetDescription>
+        </SheetHeader>
         {q.isLoading || !q.data ? (
           <div className="p-6 space-y-4">
             <Skeleton className="h-16 w-16 rounded-full" />
@@ -117,7 +119,7 @@ export function UserDetailDrawer({
             <Skeleton className="h-40 w-full" />
           </div>
         ) : q.isError ? (
-          <div className="p-6 text-center text-sm text-muted-foreground">
+          <div className="p-6 text-center text-[15px] font-semibold text-muted-foreground">
             Couldn&apos;t load user details. {(q.error as ApiError)?.message}
           </div>
         ) : (
@@ -149,29 +151,29 @@ function UserDetailContent({ data }: { data: UserDetail }) {
     }
   };
 
+  const HEAD = "font-display text-xl font-semibold leading-tight";
+  const LIST_ROW = "flex items-center justify-between gap-3 py-3 border-t-2 border-dotted border-border first:border-t-0";
   return (
     <div>
-      {/* Header with gradient */}
-      <div className="relative bg-brand-gradient p-6 text-primary-foreground">
-        <div className="absolute -top-8 -right-8 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+      {/* Header */}
+      <div className="relative overflow-hidden bg-[#3B1F1A] p-6 text-[#FFF4E0]">
+        <AdminRings size={260} className="pointer-events-none absolute -right-24 -top-24" />
         <div className="relative flex items-center gap-4">
-          <Avatar className="h-16 w-16 border-2 border-white/30">
-            <AvatarFallback className="bg-white/20 text-white text-lg font-bold">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          <span className="grid h-[72px] w-[72px] shrink-0 place-items-center rounded-full bg-[#F5A623] font-display text-3xl font-bold text-[#3B1F1A]">
+            {initials}
+          </span>
           <div className="min-w-0">
-            <h2 className="text-xl font-bold truncate">{user.name}</h2>
-            <p className="text-sm text-primary-foreground/80 truncate">{user.email}</p>
-            <div className="flex items-center gap-2 mt-1.5">
-              <Badge className="border-transparent bg-white/20 text-white text-[10px]">
+            <h2 className="truncate font-display text-2xl font-semibold leading-tight">{user.name}</h2>
+            <p className="truncate text-sm font-semibold text-[#F7DCC8]">{user.email}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Badge className="border-transparent bg-[#F3E3CF] text-[#5A372E] text-[13px] font-extrabold px-3">
                 {user.role}
               </Badge>
               <Badge
-                className={`border-transparent text-[10px] ${
+                className={`border-transparent text-[13px] font-extrabold px-3 ${
                   user.status === "ACTIVE"
-                    ? "bg-emerald-400/30 text-white"
-                    : "bg-rose-400/30 text-white"
+                    ? "bg-[#DCEBD8] text-[#244B2B]"
+                    : "bg-[#F7C9B6] text-[#7A2A10]"
                 }`}
               >
                 {user.status}
@@ -181,9 +183,9 @@ function UserDetailContent({ data }: { data: UserDetail }) {
         </div>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-7">
         {/* Contact */}
-        <div className="grid grid-cols-2 gap-3">
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <ContactRow icon={Mail} label="Email" value={user.email} />
           <ContactRow icon={Phone} label="Phone" value={user.phone || "—"} />
           <ContactRow
@@ -197,182 +199,185 @@ function UserDetailContent({ data }: { data: UserDetail }) {
             label="Joined"
             value={prettyDate(user.createdAt.slice(0, 10))}
           />
-        </div>
+        </dl>
 
         {/* Attendance stats */}
         {user.role === "STUDENT" && (
-          <div>
-            <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
-              <Flame className="h-4 w-4 text-amber-600" /> Practice stats
-            </h3>
-            <div className="grid grid-cols-4 gap-2">
+          <section aria-label="Attendance">
+            <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-muted-foreground">
+              Attendance streak
+            </p>
+            <p className="font-display text-5xl font-bold leading-[1.05] mt-1">
+              {attendance.currentStreak} {attendance.currentStreak === 1 ? "day" : "days"}
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <StatBox icon={Flame} value={attendance.currentStreak} label="Streak" tone="amber" />
               <StatBox icon={Trophy} value={attendance.longestStreak} label="Best" tone="rose" />
               <StatBox icon={Check} value={attendance.totalAttended} label="Total" tone="emerald" />
-              <StatBox icon={TrendingUp} value={attendance.last30Days} label="30d" tone="primary" />
+              <StatBox icon={TrendingUp} value={attendance.last30Days} label="30 days" tone="primary" />
             </div>
             {attendance.attendedToday && (
-              <Badge className="mt-2 border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px]">
+              <Badge className="mt-3 border-transparent bg-[#DCEBD8] text-[#244B2B] text-[13px] font-extrabold px-3">
                 <Check className="h-3 w-3" /> Attended today
               </Badge>
             )}
-          </div>
+          </section>
         )}
 
         {/* Today's class + Meet link */}
         {todaysClasses.length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
-              <Video className="h-4 w-4 text-primary" /> Today&apos;s class
+          <section aria-label="Today's class">
+            <h3 className={`${HEAD} mb-3 flex items-center gap-2`}>
+              <Video className="h-5 w-5 text-primary" /> Today&apos;s class
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {todaysClasses.map((c) => (
                 <div
                   key={c.id}
-                  className="rounded-lg border border-border bg-card p-3 flex items-center gap-3"
+                  className="flex items-center gap-3 rounded-3xl bg-secondary p-4"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{c.scheduleName}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-extrabold truncate">{c.scheduleName}</p>
+                    <p className="text-sm font-semibold text-muted-foreground">
                       {c.startTime} – {c.endTime}
                     </p>
                   </div>
                   {c.meetUrl ? (
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       <Button
-                        size="sm"
+                        size="icon"
                         variant="outline"
+                        aria-label="Copy Meet link"
                         onClick={() => copyMeet(c.meetUrl!)}
                       >
                         {copied ? (
-                          <Check className="h-3.5 w-3.5" />
+                          <Check className="h-4 w-4" />
                         ) : (
-                          <Copy className="h-3.5 w-3.5" />
+                          <Copy className="h-4 w-4" />
                         )}
                       </Button>
                       <a
                         href={c.meetUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-border hover:bg-accent/40"
+                        aria-label="Open Meet link"
+                        className="inline-flex items-center justify-center size-11 rounded-full border-2 border-foreground/80 hover:bg-accent"
                       >
-                        <ExternalLink className="h-3.5 w-3.5" />
+                        <ExternalLink className="h-4 w-4" />
                       </a>
                     </div>
                   ) : (
-                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                    <Badge className="border-transparent bg-[#FBE3B0] text-[#5C3A00] text-[13px] font-extrabold px-3">
                       No link
                     </Badge>
                   )}
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         )}
 
         {/* Active membership */}
         {activeMembership ? (
-          <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300">
-              <CreditCard className="h-4 w-4" />
-              <span className="text-sm font-medium">Active membership</span>
+          <section
+            aria-label="Subscription"
+            className="relative overflow-hidden rounded-3xl bg-[#FFF0DA] p-6 text-[#3B1F1A] shadow-soft"
+          >
+            <MembershipRings className="pointer-events-none absolute -bottom-12 -right-12" />
+            <div className="relative">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className={HEAD}>Active membership</h3>
+                <Badge className="border-transparent bg-[#DCEBD8] text-[#244B2B] text-[13px] font-extrabold px-3">
+                  Active
+                </Badge>
+              </div>
+              <p className="mt-2 font-display text-5xl font-bold leading-[1.1]">
+                {formatINR(activeMembership.amount)}
+                <span className="font-sans text-[15px] font-bold text-[#5A372E]"> / month</span>
+              </p>
+              <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 text-[15px] font-bold">
+                <dt className="text-[#5A372E]">Next billing</dt>
+                <dd className="text-right">
+                  {activeMembership.nextBillingDate
+                    ? prettyDate(activeMembership.nextBillingDate.slice(0, 10))
+                    : "—"}
+                </dd>
+                <dt className="text-[#5A372E]">Expires</dt>
+                <dd className="text-right">
+                  {activeMembership.endDate
+                    ? prettyDate(activeMembership.endDate.slice(0, 10))
+                    : "—"}
+                </dd>
+              </dl>
             </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Amount</span>
-              <span className="font-medium">{formatINR(activeMembership.amount)}/mo</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Next billing</span>
-              <span className="font-medium">
-                {activeMembership.nextBillingDate
-                  ? prettyDate(activeMembership.nextBillingDate.slice(0, 10))
-                  : "—"}
-              </span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Expires</span>
-              <span className="font-medium">
-                {activeMembership.endDate
-                  ? prettyDate(activeMembership.endDate.slice(0, 10))
-                  : "—"}
-              </span>
-            </div>
-          </div>
+          </section>
         ) : (
-          <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 text-sm text-amber-700 dark:text-amber-400">
-            No active membership
+          <div className="flex items-center gap-2 rounded-3xl bg-[#FBE3B0] p-4 font-extrabold text-[#5C3A00]">
+            <CreditCard className="h-5 w-5" /> No active membership
           </div>
         )}
 
         {/* Subscriptions */}
         {subscriptions.length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold mb-2">
-              Subscriptions ({subscriptions.length})
-            </h3>
-            <div className="space-y-1.5 max-h-40 overflow-y-auto scroll-soft">
+          <section aria-label="Subscriptions">
+            <h3 className={`${HEAD} mb-1`}>Subscriptions ({subscriptions.length})</h3>
+            <ul className="max-h-56 overflow-y-auto scroll-soft">
               {subscriptions.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center justify-between gap-2 p-2 rounded-md border border-border/60 text-xs"
-                >
+                <li key={s.id} className={LIST_ROW}>
                   <div className="min-w-0">
-                    <p className="font-mono truncate">{s.razorpaySubscriptionId}</p>
-                    <p className="text-muted-foreground">{prettyDate(s.createdAt.slice(0, 10))}</p>
+                    <p className="font-mono text-[13px] font-semibold truncate text-muted-foreground">
+                      {s.razorpaySubscriptionId}
+                    </p>
+                    <p className="text-[15px] font-extrabold">{prettyDate(s.createdAt.slice(0, 10))}</p>
                   </div>
                   <Badge
-                    className={`text-[10px] border-transparent ${
+                    className={`border-transparent text-[13px] font-extrabold px-3 ${
                       s.status === "ACTIVE"
-                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                        ? "bg-[#DCEBD8] text-[#244B2B]"
                         : s.status === "CANCELLED"
-                        ? "bg-rose-500/15 text-rose-700 dark:text-rose-300"
-                        : "bg-muted text-muted-foreground"
+                        ? "bg-[#F7C9B6] text-[#7A2A10]"
+                        : "bg-[#F3E3CF] text-[#5A372E]"
                     }`}
                   >
                     {s.status}
                   </Badge>
-                </div>
+                </li>
               ))}
-            </div>
-          </div>
+            </ul>
+          </section>
         )}
 
         {/* Payments */}
         {payments.length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold mb-2">
-              Payments ({payments.length})
-            </h3>
-            <div className="space-y-1.5 max-h-40 overflow-y-auto scroll-soft">
+          <section aria-label="Payments">
+            <h3 className={`${HEAD} mb-1`}>Payments ({payments.length})</h3>
+            <ul className="max-h-64 overflow-y-auto scroll-soft">
               {payments.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between gap-2 p-2 rounded-md border border-border/60 text-xs"
-                >
+                <li key={p.id} className={LIST_ROW}>
                   <div className="min-w-0">
-                    <p className="font-medium">{formatINR(p.amount)}</p>
-                    <p className="text-muted-foreground font-mono truncate">
+                    <p className="text-[15px] font-extrabold">
+                      {p.paidAt ? prettyDate(p.paidAt.slice(0, 10)) : "—"}
+                    </p>
+                    <p className="font-mono text-[13px] font-semibold truncate text-muted-foreground">
                       {p.razorpayPaymentId}
                     </p>
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="font-display text-[22px] font-bold">{formatINR(p.amount)}</span>
                     <Badge
-                      className={`text-[10px] border-transparent ${
+                      className={`border-transparent text-[13px] font-extrabold px-3 ${
                         p.status === "CAPTURED"
-                          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                          : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                          ? "bg-[#DCEBD8] text-[#244B2B]"
+                          : "bg-[#FBE3B0] text-[#5C3A00]"
                       }`}
                     >
                       {p.status}
                     </Badge>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {p.paidAt ? prettyDate(p.paidAt.slice(0, 10)) : "—"}
-                    </p>
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
-          </div>
+            </ul>
+          </section>
         )}
       </div>
     </div>
@@ -392,23 +397,21 @@ function ContactRow({
 }) {
   return (
     <div
-      className={`rounded-lg border p-2.5 ${
-        warning
-          ? "border-amber-500/30 bg-amber-500/5"
-          : "border-border/60 bg-card"
+      className={`rounded-2xl p-3 ${
+        warning ? "bg-[#FBE3B0] text-[#5C3A00]" : "bg-secondary text-secondary-foreground"
       }`}
     >
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-        <Icon className="h-3 w-3" />
-        {label}
-      </div>
-      <p
-        className={`text-sm font-medium mt-0.5 truncate ${
-          warning ? "text-amber-700 dark:text-amber-400" : ""
+      <dt
+        className={`flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-[0.08em] ${
+          warning ? "" : "text-muted-foreground"
         }`}
       >
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </dt>
+      <dd className="mt-0.5 truncate text-[15px] font-bold" title={value}>
         {value}
-      </p>
+      </dd>
     </div>
   );
 }
@@ -426,19 +429,17 @@ function StatBox({
 }) {
   const toneClass =
     tone === "amber"
-      ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+      ? "bg-[#FBE3B0] text-[#5C3A00]"
       : tone === "rose"
-      ? "bg-rose-500/10 text-rose-700 dark:text-rose-400"
+      ? "bg-[#F7C9B6] text-[#7A2A10]"
       : tone === "emerald"
-      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-      : "bg-primary/10 text-primary";
+      ? "bg-[#DCEBD8] text-[#244B2B]"
+      : "bg-[#3B1F1A] text-[#FFF4E0]";
   return (
-    <div className={`rounded-lg p-2.5 text-center ${toneClass}`}>
-      <Icon className="h-3.5 w-3.5 mx-auto mb-0.5" />
-      <p className="text-lg font-bold leading-none">{value}</p>
-      <p className="text-[9px] uppercase tracking-wide mt-0.5">{label}</p>
+    <div className={`rounded-3xl p-3 text-center ${toneClass}`}>
+      <Icon className="h-4 w-4 mx-auto mb-1" />
+      <p className="font-display text-3xl font-bold leading-none">{value}</p>
+      <p className="mt-1 text-xs font-extrabold uppercase tracking-[0.06em]">{label}</p>
     </div>
   );
 }
-
-// useState import at top of file

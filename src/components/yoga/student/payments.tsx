@@ -80,26 +80,26 @@ export function PaymentsView() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Payments</h1>
+          <h1 className="font-display text-4xl font-semibold leading-tight">Payments</h1>
           <p className="text-sm text-muted-foreground">
             Razorpay billing history · all amounts in INR
           </p>
         </div>
-        <Card className="border-border/60">
+        <Card className="rounded-3xl shadow-soft">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-emerald-500/15 grid place-items-center">
-              <IndianRupee className="h-5 w-5 text-emerald-600" />
+            <div className="h-10 w-10 rounded-2xl bg-success-soft grid place-items-center">
+              <IndianRupee className="h-5 w-5 text-success" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Total paid</p>
-              <p className="text-lg font-bold">{formatINR(total)}</p>
+              <p className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">Total paid</p>
+              <p className="font-display text-2xl font-bold leading-none">{formatINR(total)}</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Desktop table */}
-      <Card className="hidden md:block">
+      <Card className="hidden md:block rounded-3xl shadow-soft overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -116,7 +116,7 @@ export function PaymentsView() {
               <TableRow key={p.id}>
                 <TableCell>
                   <div className="flex flex-col">
-                    <span className="font-medium">
+                    <span className="font-extrabold">
                       {p.paidAt
                         ? prettyDate(p.paidAt.slice(0, 10))
                         : prettyDate(p.createdAt.slice(0, 10))}
@@ -126,7 +126,7 @@ export function PaymentsView() {
                     </span>
                   </div>
                 </TableCell>
-                <TableCell className="font-semibold">
+                <TableCell className="font-display text-lg font-bold">
                   {formatINR(p.amount)}
                 </TableCell>
                 <TableCell>
@@ -144,8 +144,8 @@ export function PaymentsView() {
                 </TableCell>
                 <TableCell className="text-right">
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant="secondary"
+                    className="min-h-11"
                     onClick={() => openReceipt(p.id)}
                     disabled={p.status !== "CAPTURED" && p.status !== "captured"}
                     title={
@@ -165,45 +165,52 @@ export function PaymentsView() {
       </Card>
 
       {/* Mobile cards */}
-      <div className="md:hidden space-y-3">
-        {q.data.items.map((p) => (
-          <Card key={p.id} className="border-border/60">
-            <CardContent className="p-4 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">
-                    {formatINR(p.amount)}
-                  </span>
-                  <PaymentStatusBadge status={p.status} />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {p.paidAt
-                    ? prettyDate(p.paidAt.slice(0, 10))
-                    : prettyDate(p.createdAt.slice(0, 10))}
-                </p>
-                <p className="text-xs text-muted-foreground font-mono break-all">
-                  {p.razorpayPaymentId ?? "—"}
-                </p>
-              </div>
-              <div className="flex flex-col items-end gap-2 shrink-0">
-                <div className="text-right text-xs text-muted-foreground">
-                  <p>Fee</p>
-                  <p className="text-foreground font-medium">
-                    {p.gatewayFee != null ? formatINR(p.gatewayFee) : "—"}
+      <div className="md:hidden space-y-2.5">
+        {q.data.items.map((p) => {
+          const captured = p.status === "CAPTURED" || p.status === "captured";
+          return (
+            <Card key={p.id} className="rounded-3xl shadow-soft">
+              <CardContent className="px-5 py-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[15.5px] font-extrabold">
+                    {p.paidAt
+                      ? prettyDate(p.paidAt.slice(0, 10))
+                      : prettyDate(p.createdAt.slice(0, 10))}
                   </p>
+                  <p className="text-xs text-muted-foreground font-mono break-all">
+                    {p.razorpayPaymentId ?? "—"}
+                  </p>
+                  {p.gatewayFee != null && (
+                    <p className="text-[13.5px] font-semibold text-muted-foreground">
+                      Fee {formatINR(p.gatewayFee)}
+                    </p>
+                  )}
+                  {captured ? (
+                    <button
+                      type="button"
+                      onClick={() => openReceipt(p.id)}
+                      className="-my-1 inline-flex min-h-11 items-center gap-1.5 text-[13.5px] font-extrabold text-primary"
+                    >
+                      <FileText className="h-4 w-4" /> Download receipt
+                    </button>
+                  ) : (
+                    <p className="text-[13.5px] font-semibold text-muted-foreground min-h-8 leading-8">
+                      No receipt for failed payments
+                    </p>
+                  )}
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openReceipt(p.id)}
-                  disabled={p.status !== "CAPTURED" && p.status !== "captured"}
-                >
-                  <FileText className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                <div className="text-right shrink-0">
+                  <p className={`font-display text-2xl font-bold leading-none ${captured ? "" : "text-muted-foreground"}`}>
+                    {formatINR(p.amount)}
+                  </p>
+                  <div className="mt-1.5">
+                    <PaymentStatusBadge status={p.status} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <p className="text-xs text-muted-foreground text-center">
@@ -217,18 +224,18 @@ export function PaymentsView() {
 function PaymentStatusBadge({ status }: { status: string }) {
   const s = status.toLowerCase();
   let cls =
-    "border-border bg-muted text-muted-foreground";
+    "border-transparent bg-muted text-muted-foreground";
   if (s === "captured")
     cls =
-      "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300";
+      "border-transparent bg-success-soft text-success";
   else if (s === "pending")
     cls =
-      "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300";
+      "border-transparent bg-marigold/30 text-foreground";
   else if (s === "failed" || s === "refunded")
     cls =
-      "border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300";
+      "border-transparent bg-primary/15 text-primary";
   return (
-    <Badge variant="outline" className={cls}>
+    <Badge variant="outline" className={`rounded-full px-3 py-0.5 font-extrabold ${cls}`}>
       {status}
     </Badge>
   );

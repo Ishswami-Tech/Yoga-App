@@ -3,18 +3,12 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { run, notFound, fail } from "@/lib/api";
 import { audit } from "@/lib/services/audit";
-import { razorpay } from "@/lib/providers/razorpay";
-import { applyRazorpayEvent } from "@/lib/services/subscriptions";
+import { changeSubscriptionBilling } from "@/lib/services/subscriptions";
 
 export const runtime = "nodejs";
 
-// Cancel an active subscription.
-//
-// This mirrors the real Razorpay "subscription.cancelled" webhook flow:
-// the adapter emits a cancelled event, applyRazorpayEvent verifies it
-// idempotently (via the WebhookEvent table) and updates the Subscription
-// status to CANCELLED inside a Prisma transaction. The student keeps
-// access until endDate (end of the current billing cycle).
+// Cancel a subscription on Razorpay (real API call). Local state follows Razorpay's response and
+// the subscription.cancelled webhook re-applies it idempotently.
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   return run(async () => {
     const admin = await requireRole("ADMIN");
@@ -32,18 +26,8 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
       );
     }
 
-    // Build the synthetic "subscription.cancelled" Razorpay event and run it
-    // through the same verified-webhook path that real cancellations use.
-    const event = razorpay.buildCancelledEvent(sub.razorpaySubscriptionId);
-    const eventId = `evt_cancel_${sub.razorpaySubscriptionId}_${Date.now()}`;
-    const res = await applyRazorpayEvent(event, eventId);
-    if (!res.applied) {
-      return fail(
-        res.reason ?? "Webhook application failed",
-        500,
-        { code: "WEBHOOK" }
-      );
-    }
+    // Real Razorpay cancellation; the student keeps access until the paid period ends.
+    await changeSubscriptionBilling(sub, "cancel_now");
 
     await audit({
       actorUserId: admin.id,

@@ -6,15 +6,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Flame,
   Trophy,
   CheckCircle2,
   CalendarCheck,
-  Sparkles,
-  TrendingUp,
   ArrowRight,
 } from "lucide-react";
 import { useApp } from "@/lib/store";
+import { DarkRings, StreakSun } from "@/components/yoga/art/sunrise";
 import { prettyDate, prettyTime } from "./format";
 
 type AttendanceSummary = {
@@ -62,67 +60,68 @@ export function StreakCard() {
       : `${a.currentStreak} day streak`;
 
   return (
-    <Card className="relative overflow-hidden border-border/60">
-      <div className="absolute -top-8 -right-8 h-28 w-28 rounded-full bg-amber-500/10 blur-2xl" />
+    <Card className="relative overflow-hidden rounded-[2rem] border-0 bg-[#3B1F1A] text-white shadow-lift">
+      <DarkRings className="pointer-events-none absolute -left-24 -top-20" />
       <CardContent className="relative p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-amber-500/15 grid place-items-center">
-              <Flame className="h-4 w-4 text-amber-600" />
-            </div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Your practice
-            </p>
-          </div>
+          <p className="text-xs font-extrabold uppercase tracking-wider text-[#FFE4C4]">
+            Your practice
+          </p>
           {a.attendedToday && (
-            <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 gap-1">
+            <Badge className="border-transparent bg-[#DCEBD8] text-[#2F5A36] gap-1">
               <CheckCircle2 className="h-3 w-3" /> Today
             </Badge>
           )}
         </div>
 
-        {/* Big streak number */}
-        <div className="flex items-end gap-3">
-          <div>
-            <p className="text-5xl font-bold tracking-tight text-brand-gradient leading-none">
-              {a.currentStreak}
+        {/* Sun emblem with streak number */}
+        <div className="flex items-center gap-4">
+          <StreakSun size={104}>{a.currentStreak}</StreakSun>
+          <div className="min-w-0">
+            <p className="font-display text-2xl font-semibold leading-tight">{streakLabel}</p>
+            <p className="mt-1 text-sm font-semibold text-[#FFE4C4]">
+              {a.currentStreak === 0
+                ? "One class begins it."
+                : `Tomorrow makes ${a.currentStreak + 1}.`}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">{streakLabel}</p>
-          </div>
-          <div className="flex-1 flex justify-end gap-4 text-right">
-            <div>
-              <div className="flex items-center gap-1 justify-end text-muted-foreground">
-                <Trophy className="h-3.5 w-3.5" />
-                <span className="text-[10px] uppercase tracking-wide">Best</span>
-              </div>
-              <p className="text-lg font-bold tabular-nums">{a.longestStreak}</p>
-            </div>
-            <div>
-              <div className="flex items-center gap-1 justify-end text-muted-foreground">
-                <CalendarCheck className="h-3.5 w-3.5" />
-                <span className="text-[10px] uppercase tracking-wide">Total</span>
-              </div>
-              <p className="text-lg font-bold tabular-nums">{a.totalAttended}</p>
-            </div>
           </div>
         </div>
 
-        {/* Streak dots — last 7 class days */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-2xl bg-[#FFF4E0]/10 px-1.5 py-2 text-center">
+            <p className="font-display text-2xl font-bold leading-tight tabular-nums">{a.longestStreak}</p>
+            <p className="flex items-center justify-center gap-1 text-xs font-bold text-[#FFE4C4]">
+              <Trophy className="h-3 w-3" /> Best
+            </p>
+          </div>
+          <div className="rounded-2xl bg-[#FFF4E0]/10 px-1.5 py-2 text-center">
+            <p className="font-display text-2xl font-bold leading-tight tabular-nums">{a.last30Days}</p>
+            <p className="text-xs font-bold text-[#FFE4C4]">Last 30 days</p>
+          </div>
+          <div className="rounded-2xl bg-[#FFF4E0]/10 px-1.5 py-2 text-center">
+            <p className="font-display text-2xl font-bold leading-tight tabular-nums">{a.totalAttended}</p>
+            <p className="flex items-center justify-center gap-1 text-xs font-bold text-[#FFE4C4]">
+              <CalendarCheck className="h-3 w-3" /> Total
+            </p>
+          </div>
+        </div>
+
+        {/* Streak dots - last 7 class days */}
         <StreakDots summary={a} />
 
         {/* Recent */}
         {a.recentAttendances.length > 0 && (
-          <div className="pt-2 border-t border-border/40 space-y-1.5">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          <div className="pt-2 border-t border-[#FFF4E0]/20 space-y-1.5">
+            <p className="text-xs font-bold uppercase tracking-wide text-[#FFE4C4]">
               Recent
             </p>
             {a.recentAttendances.slice(0, 3).map((r) => (
               <div key={r.id} className="flex items-center gap-2 text-xs">
-                <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
-                <span className="text-muted-foreground truncate flex-1">
+                <CheckCircle2 className="h-3 w-3 text-[#F5A623] shrink-0" />
+                <span className="text-[#FFF4E0] truncate flex-1">
                   {r.scheduleName}
                 </span>
-                <span className="text-muted-foreground tabular-nums">
+                <span className="text-[#FFE4C4] tabular-nums">
                   {prettyDate(r.classDate).split(",")[0]},{" "}
                   {prettyTime(r.classStartTime)}
                 </span>
@@ -130,11 +129,11 @@ export function StreakCard() {
             ))}
           </div>
         )}
-        <div className="pt-2 border-t border-border/40">
+        <div className="pt-2 border-t border-[#FFF4E0]/20">
           <Button
             variant="ghost"
             size="sm"
-            className="w-full text-primary hover:text-primary"
+            className="w-full min-h-11 text-white hover:bg-[#FFF4E0]/10 hover:text-white"
             onClick={() => setView("student-journal")}
           >
             View full journal <ArrowRight className="h-3.5 w-3.5" />
@@ -162,10 +161,8 @@ function StreakDots({ summary }: { summary: AttendanceSummary }) {
       {cells.map((c) => (
         <div
           key={c.idx}
-          className={`h-2.5 flex-1 rounded-full transition ${
-            c.attended
-              ? "bg-gradient-to-r from-amber-500 to-rose-500"
-              : "bg-muted"
+          className={`h-3 flex-1 rounded-full transition ${
+            c.attended ? "bg-[#F5A623]" : "border-2 border-dashed border-[#C65D3B] bg-transparent"
           }`}
           title={c.attended ? "Attended" : "No class / missed"}
         />

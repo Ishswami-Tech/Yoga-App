@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { run } from "@/lib/api";
+import { istDateString } from "@/lib/services/scheduling";
 
 export const runtime = "nodejs";
 
@@ -39,7 +40,7 @@ export async function GET() {
     const days: { date: string; attended: boolean; className: string | null }[] = [];
     for (let i = 89; i >= 0; i--) {
       const d = new Date(Date.now() - i * 86400 * 1000);
-      const ds = d.toISOString().slice(0, 10);
+      const ds = istDateString(d);
       const att = attendedByDate.get(ds);
       days.push({
         date: ds,
@@ -50,9 +51,7 @@ export async function GET() {
 
     // Also get all class days in the last 90 days (to distinguish "no class"
     // from "missed class" in the heatmap).
-    const cutoff = new Date(Date.now() - 90 * 86400 * 1000)
-      .toISOString()
-      .slice(0, 10);
+    const cutoff = istDateString(new Date(Date.now() - 90 * 86400 * 1000));
     const classDays = await db.yogaClass.findMany({
       where: { date: { gte: cutoff }, status: { in: ["READY", "COMPLETED"] } },
       select: { date: true },

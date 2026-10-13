@@ -1,4 +1,5 @@
 "use client";
+import { usePlan } from "@/hooks/use-plan";
 import { useQuery } from "@tanstack/react-query";
 import { useApp, MembershipSummary } from "@/lib/store";
 import { apiGet } from "@/lib/api-client";
@@ -25,6 +26,7 @@ import { greeting, prettyTime, prettyDate, relativeToStart } from "./format";
 import { ClassCountdown } from "./class-countdown";
 import { StreakCard } from "./streak-card";
 import { BadgesCard } from "./badges-card";
+import { SunFan } from "../art/sunrise";
 
 type TodayClass = {
   id: string;
@@ -44,6 +46,7 @@ type UpcomingItem = TodayClass;
 type Upcoming = { days: number; items: UpcomingItem[] };
 
 export function DashboardView() {
+  const plan = usePlan();
   const { user, membership, setView } = useApp();
 
   const todayQ = useQuery<TodayClass>({
@@ -76,7 +79,14 @@ export function DashboardView() {
 
   return (
     <div className="space-y-6">
-      {/* HERO — Daily ritual */}
+      {/* HERO — Daily ritual (members) / Join card (no active membership) */}
+      {needsSubscription ? (
+        <JoinCard
+          firstName={firstName}
+          expired={state !== "NONE"}
+          onSubscribe={() => setView("student-membership")}
+        />
+      ) : (
       <DailyRitualHero
         firstName={firstName}
         membership={membership}
@@ -87,28 +97,28 @@ export function DashboardView() {
         onViewToday={() => setView("student-today")}
         onSubscribe={() => setView("student-membership")}
       />
+      )}
 
       {/* STATE + TODAY + NEXT grid */}
       <div className="grid gap-4 md:grid-cols-3">
         {/* Membership state */}
-        <Card className="border-border/60">
+        <Card className="rounded-3xl shadow-soft">
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
                 Membership
               </p>
               <MembershipStateBadge state={state} />
             </div>
             {state === "ACTIVE" ? (
               <>
-                <KV label="Plan">Monthly · ₹500</KV>
+                <KV label="Plan">Monthly · {plan.display}</KV>
                 <KV label="Next billing">
                   {prettyDate(membership?.nextBillingDate)}
                 </KV>
                 <Button
-                  size="sm"
                   variant="outline"
-                  className="w-full"
+                  className="w-full min-h-11"
                   onClick={() => setView("student-membership")}
                 >
                   <CreditCard className="h-4 w-4" /> Manage
@@ -124,11 +134,10 @@ export function DashboardView() {
                     : "Subscribe to unlock daily live classes and WhatsApp reminders."}
                 </p>
                 <Button
-                  size="sm"
-                  className="w-full bg-brand-gradient text-primary-foreground"
+                  className="w-full min-h-11"
                   onClick={() => setView("student-membership")}
                 >
-                  <Sparkles className="h-4 w-4" /> Subscribe ₹500/mo
+                  <Sparkles className="h-4 w-4" /> Subscribe {plan.display}/mo
                 </Button>
               </>
             )}
@@ -136,10 +145,10 @@ export function DashboardView() {
         </Card>
 
         {/* Today's class */}
-        <Card className="border-border/60">
+        <Card className="rounded-3xl shadow-soft">
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
                 Today
               </p>
               <Clock className="h-4 w-4 text-muted-foreground" />
@@ -149,7 +158,7 @@ export function DashboardView() {
             ) : todayQ.data ? (
               <>
                 <div>
-                  <p className="font-semibold">{todayQ.data.scheduleName}</p>
+                  <p className="font-display text-xl font-semibold">{todayQ.data.scheduleName}</p>
                   <p className="text-sm text-muted-foreground">
                     {prettyTime(todayQ.data.startTime)} —{" "}
                     {prettyTime(todayQ.data.endTime)}
@@ -157,8 +166,7 @@ export function DashboardView() {
                 </div>
                 {todayQ.data.canJoin && todayQ.data.meetUrl ? (
                   <Button
-                    size="sm"
-                    className="w-full bg-emerald-600 text-white hover:bg-emerald-700"
+                    className="w-full min-h-11"
                     onClick={() =>
                       window.open(todayQ.data!.meetUrl!, "_blank")
                     }
@@ -167,18 +175,16 @@ export function DashboardView() {
                   </Button>
                 ) : todayQ.data.membershipRequired ? (
                   <Button
-                    size="sm"
                     variant="outline"
-                    className="w-full"
+                    className="w-full min-h-11"
                     onClick={() => setView("student-membership")}
                   >
                     <Sparkles className="h-4 w-4" /> Subscribe to join
                   </Button>
                 ) : (
                   <Button
-                    size="sm"
                     variant="outline"
-                    className="w-full"
+                    className="w-full min-h-11"
                     onClick={() => setView("student-today")}
                   >
                     View details <ArrowRight className="h-4 w-4" />
@@ -198,10 +204,10 @@ export function DashboardView() {
         </Card>
 
         {/* Next upcoming */}
-        <Card className="border-border/60">
+        <Card className="rounded-3xl shadow-soft">
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
                 Next up
               </p>
               <CalendarClock className="h-4 w-4 text-muted-foreground" />
@@ -211,16 +217,15 @@ export function DashboardView() {
             ) : nextUpcoming ? (
               <>
                 <div>
-                  <p className="font-semibold">{nextUpcoming.scheduleName}</p>
+                  <p className="font-display text-xl font-semibold">{nextUpcoming.scheduleName}</p>
                   <p className="text-sm text-muted-foreground">
                     {prettyDate(nextUpcoming.date)} ·{" "}
                     {prettyTime(nextUpcoming.startTime)}
                   </p>
                 </div>
                 <Button
-                  size="sm"
                   variant="outline"
-                  className="w-full"
+                  className="w-full min-h-11"
                   onClick={() => setView("student-upcoming")}
                 >
                   See schedule <ArrowRight className="h-4 w-4" />
@@ -274,6 +279,66 @@ export function DashboardView() {
   );
 }
 
+function JoinCard({
+  firstName,
+  expired,
+  onSubscribe,
+}: {
+  firstName: string;
+  expired: boolean;
+  onSubscribe: () => void;
+}) {
+  const plan = usePlan();
+  const perks = [
+    { icon: Video, bg: "bg-marigold", text: "The live Google Meet class every day" },
+    { icon: Bell, bg: "bg-[#8FAF8A]", text: "WhatsApp reminder with your link 15 minutes before" },
+    { icon: Flame, bg: "bg-rose", text: "Your streak, badges and practice journal" },
+  ];
+  return (
+    <div className="space-y-4">
+      <section
+        aria-label="Join Vishwayog"
+        className="relative overflow-hidden rounded-3xl bg-sunrise-sky p-5 text-[#3B1F1A] shadow-lift"
+      >
+        <SunFan size={260} className="pointer-events-none absolute -right-24 -top-24" />
+        <span className="relative inline-flex items-center rounded-full bg-card px-3 py-1 text-[12.5px] font-extrabold uppercase tracking-wide">
+          Membership
+        </span>
+        <h2 className="relative mt-2 max-w-[260px] font-display text-3xl font-semibold leading-tight">
+          {expired
+            ? `Welcome back, ${firstName}`
+            : "Join today's class and every one after"}
+        </h2>
+        <p className="relative mt-2 text-[14.5px] font-semibold leading-snug">
+          Live yoga every morning for{" "}
+          <span className="font-extrabold">{plan.display} a month</span>. Pause
+          or cancel whenever you like.
+        </p>
+        <Button
+          size="lg"
+          className="relative mt-4 w-full min-h-14 text-base"
+          onClick={onSubscribe}
+        >
+          {expired ? "Renew membership" : "Start membership"}
+        </Button>
+      </section>
+      <section aria-label="What you get">
+        <h2 className="mb-2 ml-1.5 font-display text-xl font-semibold">What you get</h2>
+        <ul className="list-none rounded-3xl bg-card px-4 py-0.5 shadow-soft divide-y-2 divide-dotted divide-border">
+          {perks.map(({ icon: PIcon, bg, text }) => (
+            <li key={text} className="flex min-h-12 items-center gap-3 py-1.5">
+              <span aria-hidden="true" className={`grid size-8 shrink-0 place-items-center rounded-full text-[#3B1F1A] ${bg}`}>
+                <PIcon className="h-[18px] w-[18px]" />
+              </span>
+              <span className="text-[14.5px] font-bold">{text}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
+
 function QuickLink({
   icon: Icon,
   label,
@@ -288,17 +353,17 @@ function QuickLink({
   return (
     <button
       onClick={onClick}
-      className="text-left rounded-xl border border-border/60 bg-card p-4 hover:border-primary/40 hover:bg-accent/30 transition group"
+      className="text-left min-h-16 rounded-3xl bg-card p-4 shadow-soft hover:bg-accent/40 transition group"
     >
       <div className="flex items-start gap-3">
-        <div className="h-9 w-9 rounded-lg bg-brand-gradient/10 grid place-items-center shrink-0 group-hover:scale-105 transition">
-          <Icon className="h-4 w-4 text-primary" />
+        <div className="h-10 w-10 rounded-2xl bg-rose/60 grid place-items-center shrink-0 group-hover:scale-105 transition">
+          <Icon className="h-5 w-5 text-foreground" />
         </div>
         <div className="min-w-0">
-          <p className="font-medium text-sm truncate">{label}</p>
+          <p className="font-extrabold text-sm truncate">{label}</p>
           <p className="text-xs text-muted-foreground truncate">{desc}</p>
         </div>
-        <ArrowRight className="h-4 w-4 text-muted-foreground/40 ml-auto group-hover:text-primary transition" />
+        <ArrowRight className="h-4 w-4 text-muted-foreground ml-auto group-hover:text-primary transition" />
       </div>
     </button>
   );
@@ -319,6 +384,7 @@ function DailyRitualHero({
   onViewToday: () => void;
   onSubscribe: () => void;
 }) {
+  const plan = usePlan();
   const state = membership?.state ?? "NONE";
   const today = todayQ.data;
   const rel = today
@@ -328,21 +394,20 @@ function DailyRitualHero({
   const Icon = isLive ? Sunrise : Moon;
 
   return (
-    <Card className="relative overflow-hidden border-border/60">
-      <div className="absolute inset-0 bg-brand-gradient opacity-90" />
-      <div className="absolute -top-12 -right-12 h-48 w-48 rounded-full bg-white/10" />
-      <div className="absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-warm-gradient opacity-30" />
+    <Card className="relative overflow-hidden rounded-3xl border-0 shadow-lift">
+      <div className="absolute inset-0 bg-primary" />
+      <SunFan size={260} className="pointer-events-none absolute -right-16 -top-20 opacity-70" />
       <CardContent className="relative p-6 md:p-8 text-primary-foreground">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div className="space-y-2 min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-extrabold">
               <Sparkles className="h-3.5 w-3.5" />
-              Daily ritual · 7:00 AM IST
+              Daily live yoga
             </div>
-            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+            <h2 className="font-display text-3xl md:text-4xl font-semibold leading-tight">
               {greeting()}, {firstName}.
             </h2>
-            <p className="text-primary-foreground/80 text-sm md:text-base max-w-md">
+            <p className="text-primary-foreground text-sm md:text-base max-w-md">
               {today ? (
                 <>
                   Today&apos;s class is{" "}
@@ -392,7 +457,7 @@ function DailyRitualHero({
             {today && today.canJoin && today.meetUrl ? (
               <Button
                 size="lg"
-                className="bg-white text-emerald-700 hover:bg-white/90"
+                className="bg-card text-foreground hover:bg-card/90 min-h-12"
                 onClick={onJoin}
               >
                 <Play className="h-4 w-4" /> Join on Google Meet
@@ -400,16 +465,16 @@ function DailyRitualHero({
             ) : today && today.membershipRequired ? (
               <Button
                 size="lg"
-                className="bg-white text-emerald-700 hover:bg-white/90"
+                className="bg-card text-foreground hover:bg-card/90 min-h-12"
                 onClick={onSubscribe}
               >
-                <Sparkles className="h-4 w-4" /> Subscribe ₹500/mo
+                <Sparkles className="h-4 w-4" /> Subscribe {plan.display}/mo
               </Button>
             ) : today ? (
               <Button
                 size="lg"
                 variant="secondary"
-                className="bg-white/15 text-primary-foreground hover:bg-white/25"
+                className="bg-white/20 text-primary-foreground hover:bg-white/30 min-h-12"
                 onClick={onViewToday}
               >
                 View today <ArrowRight className="h-4 w-4" />
@@ -418,7 +483,7 @@ function DailyRitualHero({
               <Button
                 size="lg"
                 variant="secondary"
-                className="bg-white/15 text-primary-foreground hover:bg-white/25"
+                className="bg-white/20 text-primary-foreground hover:bg-white/30 min-h-12"
                 onClick={onViewToday}
               >
                 Rest & breathe <ArrowRight className="h-4 w-4" />
@@ -426,13 +491,13 @@ function DailyRitualHero({
             ) : (
               <Button
                 size="lg"
-                className="bg-white text-emerald-700 hover:bg-white/90"
+                className="bg-card text-foreground hover:bg-card/90 min-h-12"
                 onClick={onSubscribe}
               >
-                <Sparkles className="h-4 w-4" /> Subscribe ₹500/mo
+                <Sparkles className="h-4 w-4" /> Subscribe {plan.display}/mo
               </Button>
             )}
-            <div className="hidden md:flex items-center justify-center gap-1.5 text-[11px] text-primary-foreground/70">
+            <div className="hidden md:flex items-center justify-center gap-1.5 text-xs text-primary-foreground">
               <ShieldCheck className="h-3.5 w-3.5" /> Verified access
             </div>
           </div>

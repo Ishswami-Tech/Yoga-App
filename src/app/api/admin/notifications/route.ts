@@ -34,6 +34,8 @@ export async function GET() {
       pendingPayments,
       classesTodayNoMeet,
       studentsNoWhatsapp,
+      failedClasses,
+      firstFailedClass,
     ] = await Promise.all([
       db.yogaClass.count({
         where: { status: "PENDING_MEET", date: { gte: todayStr } },
@@ -56,6 +58,14 @@ export async function GET() {
           OR: [{ whatsappNumber: null }, { whatsappNumber: "" }],
         },
       }),
+      db.yogaClass.count({
+        where: { status: "FAILED", date: { gte: todayStr } },
+      }),
+      db.yogaClass.findFirst({
+        where: { status: "FAILED", date: { gte: todayStr } },
+        orderBy: { date: "asc" },
+        select: { date: true, errorMessage: true },
+      }),
     ]);
 
     type Notification = {
@@ -69,6 +79,16 @@ export async function GET() {
 
     const items: Notification[] = [];
 
+    if (failedClasses > 0) {
+      items.push({
+        type: "failed_meets",
+        severity: "critical",
+        title: "Google Meet creation failed",
+        description: `${failedClasses} upcoming class${failedClasses === 1 ? "" : "es"} could not get a Meet link (retried automatically every 15 min). First failure ${firstFailedClass?.date ?? ""}: ${firstFailedClass?.errorMessage ?? "unknown error"}`,
+        link: "admin-classes",
+        count: failedClasses,
+      });
+    }
     if (pendingMeets > 0) {
       items.push({
         type: "pending_meets",

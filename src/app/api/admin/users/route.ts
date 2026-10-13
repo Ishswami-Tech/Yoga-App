@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireRole, hashPassword } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
+import { normalizePhone, phoneCandidates, toCanonical } from "@/lib/phone";
 import { run, fromZodError } from "@/lib/api";
 import { adminUserUpdateSchema } from "@/lib/validation";
 import { z } from "zod";
@@ -11,10 +12,9 @@ export const runtime = "nodejs";
 const createSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(6),
   role: z.enum(["STUDENT", "INSTRUCTOR", "ADMIN"]).default("STUDENT"),
   phone: z.string().optional().nullable(),
-  whatsappNumber: z.string().optional().nullable(),
+  whatsappNumber: z.string().min(7, "WhatsApp number is required (used to sign in)"),
 });
 
 // List users with optional role filter.
@@ -77,6 +77,23 @@ export async function POST(req: NextRequest) {
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) return fromZodError(parsed.error);
 
+    const wa = normalizePhone(parsed.data.whatsappNumber);
+    if (!wa) {
+      return NextResponse.json(
+        { error: "Enter a valid WhatsApp number", code: "INVALID_PHONE" },
+        { status: 422 }
+      );
+    }
+    const waTaken = await db.user.findFirst({
+      where: { whatsappNumber: { in: phoneCandidates(wa) } },
+      select: { id: true },
+    });
+    if (waTaken) {
+      return NextResponse.json(
+        { error: "This WhatsApp number already belongs to another account", code: "PHONE_TAKEN" },
+        { status: 409 }
+      );
+    }
     const existing = await db.user.findUnique({
       where: { email: parsed.data.email },
     });
@@ -94,8 +111,7 @@ export async function POST(req: NextRequest) {
         role: parsed.data.role,
         status: "ACTIVE",
         phone: parsed.data.phone || null,
-        whatsappNumber: parsed.data.whatsappNumber || null,
-        passwordHash: hashPassword(parsed.data.password),
+        whatsappNumber: toCanonical(wa),
       },
     });
     await audit({

@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME } from "@/lib/brand";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Sparkles, X } from "lucide-react";
@@ -154,7 +155,7 @@ export function ChangelogToast() {
                   ))}
                 </ul>
                 <p className="text-[10px] text-muted-foreground pt-1">
-                  {latest.date} · Prana Live Yoga
+                  {latest.date} · {APP_NAME}
                 </p>
               </div>
             </div>

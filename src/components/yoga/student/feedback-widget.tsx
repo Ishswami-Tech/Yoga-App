@@ -34,14 +34,14 @@ export function FeedbackWidget({
 
   if (submitted) {
     return (
-      <Card className="border-emerald-500/30 bg-emerald-500/5">
+      <Card className="rounded-3xl bg-success-soft border-transparent shadow-soft">
         <CardContent className="p-5 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-emerald-500/15 grid place-items-center shrink-0">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          <div className="h-10 w-10 rounded-full bg-[#8FAF8A] text-[#1F3A24] grid place-items-center shrink-0">
+            <CheckCircle2 className="h-5 w-5" />
           </div>
           <div>
-            <p className="font-medium text-sm">Feedback submitted</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="font-display text-lg font-semibold">Feedback submitted</p>
+            <p className="text-sm text-muted-foreground">
               Thank you for rating {scheduleName}!
             </p>
           </div>
@@ -51,43 +51,54 @@ export function FeedbackWidget({
   }
 
   return (
-    <Card className="border-border/60">
+    <Card className="rounded-3xl shadow-soft">
       <CardContent className="p-5 space-y-3">
         <div>
-          <p className="text-sm font-semibold flex items-center gap-1.5">
-            <Star className="h-4 w-4 text-amber-500" /> How was today&apos;s class?
+          <p className="font-display text-xl font-semibold flex items-center gap-1.5">
+            <Star className="h-5 w-5 fill-marigold text-foreground" /> How was today&apos;s class?
           </p>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-sm text-muted-foreground mt-0.5">
             Rate {scheduleName} to help your instructor improve.
           </p>
         </div>
 
         {/* Star rating */}
-        <div className="flex items-center gap-1">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <button
-              key={star}
-              onClick={() => setRating(star)}
-              onMouseEnter={() => setHovered(star)}
-              onMouseLeave={() => setHovered(0)}
-              className="transition hover:scale-110"
-              aria-label={`${star} star${star === 1 ? "" : "s"}`}
-            >
-              <Star
-                className={`h-7 w-7 ${
-                  star <= (hovered || rating)
-                    ? "fill-amber-400 text-amber-400"
-                    : "text-muted-foreground/30"
+        <div role="group" aria-label="Rating out of 5" className="flex items-center gap-2">
+          {[1, 2, 3, 4, 5].map((star) => {
+            const on = star <= (hovered || rating);
+            return (
+              <button
+                key={star}
+                type="button"
+                onClick={() => setRating(star)}
+                onMouseEnter={() => setHovered(star)}
+                onMouseLeave={() => setHovered(0)}
+                aria-pressed={star <= rating}
+                className={`grid h-14 flex-1 place-items-center rounded-2xl transition ${
+                  on
+                    ? "bg-marigold shadow-[0_8px_16px_-8px_rgb(184_70_31/0.6)]"
+                    : "bg-card shadow-soft"
                 }`}
-              />
-            </button>
-          ))}
-          {rating > 0 && (
-            <span className="ml-2 text-sm font-medium text-muted-foreground">
-              {["", "Poor", "Fair", "Good", "Great", "Amazing"][rating]}
-            </span>
-          )}
+                aria-label={`${star} star${star === 1 ? "" : "s"}`}
+              >
+                <Star
+                  className={`h-8 w-8 ${
+                    on
+                      ? "fill-[#FFF4E0] text-[#3B1F1A]"
+                      : "text-muted-foreground"
+                  }`}
+                />
+              </button>
+            );
+          })}
         </div>
+        {rating > 0 && (
+          <div className="text-center">
+            <span className="inline-flex min-h-9 items-center rounded-full bg-rose/60 px-4 font-display text-lg font-bold">
+              {rating} of 5, {["", "Poor", "Fair", "Good", "Great", "Amazing"][rating]}
+            </span>
+          </div>
+        )}
 
         {/* Comment */}
         {rating > 0 && (
@@ -100,8 +111,8 @@ export function FeedbackWidget({
               maxLength={500}
             />
             <Button
-              size="sm"
-              className="bg-brand-gradient text-primary-foreground"
+              size="lg"
+              className="w-full"
               disabled={mut.isPending}
               onClick={() => mut.mutate()}
             >

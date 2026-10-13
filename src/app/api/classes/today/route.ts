@@ -28,7 +28,7 @@ export async function GET() {
 
     // Filter by weekday + exception client-side (weekday flags are columns
     // not easily queryable through Prisma).
-    const eligible = [];
+    const eligible: typeof classes = [];
     for (const cls of classes) {
       const s = cls.schedule;
       if (!s.active) continue;

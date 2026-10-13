@@ -28,6 +28,15 @@ export async function POST(req: NextRequest) {
     const cls = await db.yogaClass.findUnique({ where: { id: classId } });
     if (!cls) return fail("Class not found", 404, { code: "NOT_FOUND" });
 
+    // Only students who actually attended the class can rate it.
+    const attended = await db.attendance.findUnique({
+      where: { userId_classId: { userId: user.id, classId } },
+      select: { id: true },
+    });
+    if (!attended) {
+      return fail("You can rate a class after you have attended it", 403, { code: "NOT_ATTENDED" });
+    }
+
     // Check if feedback already exists (idempotent upsert)
     const existing = await db.classFeedback.findUnique({
       where: { userId_classId: { userId: user.id, classId } },

@@ -1,4 +1,5 @@
 "use client";
+import { usePlan } from "@/hooks/use-plan";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, ApiError } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,30 +65,31 @@ type Analytics = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  ACTIVE: "#10b981",
-  PENDING: "#f59e0b",
-  HALTED: "#ef4444",
-  CANCELLED: "#6b7280",
-  EXPIRED: "#9ca3af",
-  FAILED: "#dc2626",
-  CREATED: "#3b82f6",
+  ACTIVE: "#5E8A5A",
+  PENDING: "#F5A623",
+  HALTED: "#C65D3B",
+  CANCELLED: "#A8806F",
+  EXPIRED: "#5A372E",
+  FAILED: "#B8461F",
+  CREATED: "#E8833A",
 };
 const CLASS_STATUS_COLORS: Record<string, string> = {
-  READY: "#10b981",
-  COMPLETED: "#0ea5e9",
-  PENDING_MEET: "#f59e0b",
-  CANCELLED: "#6b7280",
-  FAILED: "#dc2626",
+  READY: "#5E8A5A",
+  COMPLETED: "#3B1F1A",
+  PENDING_MEET: "#F5A623",
+  CANCELLED: "#A8806F",
+  FAILED: "#B8461F",
 };
 const WA_COLORS: Record<string, string> = {
-  DELIVERED: "#10b981",
-  SENT: "#0ea5e9",
-  READ: "#8b5cf6",
-  FAILED: "#ef4444",
-  QUEUED: "#f59e0b",
+  DELIVERED: "#5E8A5A",
+  SENT: "#3B1F1A",
+  READ: "#B8461F",
+  FAILED: "#C65D3B",
+  QUEUED: "#F5A623",
 };
 
 export function AnalyticsView() {
+  const plan = usePlan();
   const qc = useQueryClient();
   const q = useQuery<Analytics>({
     queryKey: ["admin", "analytics"],
@@ -116,14 +118,12 @@ export function AnalyticsView() {
           <>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => qc.invalidateQueries({ queryKey: ["admin", "analytics"] })}
             >
               <RefreshCw className="h-4 w-4" /> Refresh
             </Button>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => {
                 window.open("/api/admin/analytics/csv", "_blank", "noopener,noreferrer");
               }}
@@ -171,7 +171,7 @@ export function AnalyticsView() {
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-semibold flex items-center gap-2">
+              <h3 className="font-display text-lg font-semibold flex items-center gap-2">
                 <IndianRupee className="h-4 w-4 text-primary" /> Monthly revenue
               </h3>
               <p className="text-xs text-muted-foreground">
@@ -186,36 +186,36 @@ export function AnalyticsView() {
             <EmptyState
               icon={IndianRupee}
               title="No captured payments yet"
-              description="Revenue will appear here once the first ₹500 membership payment lands."
+              description={`Revenue will appear here once the first ${plan.display} membership payment lands.`}
             />
           ) : (
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={a.revenue.monthly} margin={{ left: -8, right: 8, top: 8, bottom: 0 }}>
                 <defs>
                   <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="#5E8A5A" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="#5E8A5A" stopOpacity={0.02} />
                   </linearGradient>
                   <linearGradient id="net" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="#F5A623" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#F5A623" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.4} />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#9ca3af" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#EBCDB8" opacity={0.4} />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="#5A372E" />
                 <YAxis
                   tick={{ fontSize: 12 }}
-                  stroke="#9ca3af"
+                  stroke="#5A372E"
                   tickFormatter={(v) => `₹${Math.round(v / 100)}`}
                 />
                 <Tooltip
                   formatter={(v: number) => formatINR(v)}
-                  contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 13 }}
+                  contentStyle={{ borderRadius: 16, background: "#FFFBF2", color: "#3B1F1A", border: "1px solid #EBCDB8", fontSize: 13 }}
                 />
                 <Area
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#10b981"
+                  stroke="#5E8A5A"
                   strokeWidth={2}
                   fill="url(#rev)"
                   name="Revenue"
@@ -223,7 +223,7 @@ export function AnalyticsView() {
                 <Area
                   type="monotone"
                   dataKey="net"
-                  stroke="#f59e0b"
+                  stroke="#F5A623"
                   strokeWidth={2}
                   fill="url(#net)"
                   name="Net"
@@ -262,12 +262,12 @@ export function AnalyticsView() {
                     {a.subscriptions.distribution.map((entry) => (
                       <Cell
                         key={entry.status}
-                        fill={STATUS_COLORS[entry.status] ?? "#6b7280"}
+                        fill={STATUS_COLORS[entry.status] ?? "#A8806F"}
                       />
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 13 }}
+                    contentStyle={{ borderRadius: 16, background: "#FFFBF2", color: "#3B1F1A", border: "1px solid #EBCDB8", fontSize: 13 }}
                   />
                   <Legend
                     iconType="circle"
@@ -292,17 +292,17 @@ export function AnalyticsView() {
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={a.classes.statusDistribution} margin={{ left: -16, right: 8, top: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.4} />
-                  <XAxis dataKey="status" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                  <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#EBCDB8" opacity={0.4} />
+                  <XAxis dataKey="status" tick={{ fontSize: 11 }} stroke="#5A372E" />
+                  <YAxis tick={{ fontSize: 12 }} stroke="#5A372E" allowDecimals={false} />
                   <Tooltip
-                    contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 13 }}
+                    contentStyle={{ borderRadius: 16, background: "#FFFBF2", color: "#3B1F1A", border: "1px solid #EBCDB8", fontSize: 13 }}
                   />
                   <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                     {a.classes.statusDistribution.map((entry) => (
                       <Cell
                         key={entry.status}
-                        fill={CLASS_STATUS_COLORS[entry.status] ?? "#6b7280"}
+                        fill={CLASS_STATUS_COLORS[entry.status] ?? "#A8806F"}
                       />
                     ))}
                   </Bar>
@@ -323,18 +323,18 @@ export function AnalyticsView() {
             <p className="text-xs text-muted-foreground mb-4">Last 14 days</p>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={a.dailyClasses} margin={{ left: -16, right: 8, top: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.4} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#EBCDB8" opacity={0.4} />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 10 }}
-                  stroke="#9ca3af"
+                  stroke="#5A372E"
                   tickFormatter={(d) => d.slice(5)}
                 />
-                <YAxis tick={{ fontSize: 12 }} stroke="#9ca3af" allowDecimals={false} />
+                <YAxis tick={{ fontSize: 12 }} stroke="#5A372E" allowDecimals={false} />
                 <Tooltip
-                  contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 13 }}
+                  contentStyle={{ borderRadius: 16, background: "#FFFBF2", color: "#3B1F1A", border: "1px solid #EBCDB8", fontSize: 13 }}
                 />
-                <Bar dataKey="count" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" fill="#5E8A5A" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -360,7 +360,7 @@ export function AnalyticsView() {
                         cy="18"
                         r="15.5"
                         fill="none"
-                        stroke="#e5e7eb"
+                        stroke="#EBCDB8"
                         strokeWidth="3"
                       />
                       <circle
@@ -368,7 +368,7 @@ export function AnalyticsView() {
                         cy="18"
                         r="15.5"
                         fill="none"
-                        stroke="#10b981"
+                        stroke="#5E8A5A"
                         strokeWidth="3"
                         strokeLinecap="round"
                         strokeDasharray={`${(a.whatsapp.deliveryRatePct / 100) * 97.4} 97.4`}
@@ -384,7 +384,7 @@ export function AnalyticsView() {
                         <span className="flex items-center gap-2">
                           <span
                             className="h-2.5 w-2.5 rounded-full"
-                            style={{ background: WA_COLORS[d.status] ?? "#6b7280" }}
+                            style={{ background: WA_COLORS[d.status] ?? "#A8806F" }}
                           />
                           {d.status}
                         </span>
@@ -400,20 +400,20 @@ export function AnalyticsView() {
       </div>
 
       {/* Penetration callout */}
-      <Card className="border-primary/30 bg-primary/5">
+      <Card className="border-primary/30 bg-accent/40">
         <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="h-12 w-12 rounded-xl bg-brand-gradient grid place-items-center shrink-0">
+          <div className="h-12 w-12 rounded-full bg-primary grid place-items-center shrink-0">
             <Percent className="h-6 w-6 text-primary-foreground" />
           </div>
           <div className="flex-1">
-            <p className="font-semibold">Membership penetration</p>
+            <p className="font-display text-lg font-semibold">Membership penetration</p>
             <p className="text-sm text-muted-foreground">
               {a.subscriptions.active} of {a.subscriptions.totalStudents} students have an active
               membership — that&apos;s {a.subscriptions.penetration}% conversion. Aim for 60%+.
             </p>
           </div>
           <div className="text-right">
-            <p className="text-3xl font-bold text-brand-gradient">
+            <p className="font-display text-4xl font-semibold text-primary">
               {a.subscriptions.penetration}%
             </p>
             <p className="text-xs text-muted-foreground">active / total students</p>
@@ -448,23 +448,23 @@ function KpiCard({
 }) {
   const toneClass =
     tone === "emerald"
-      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+      ? "bg-success-soft text-success"
       : tone === "amber"
-      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-      : "bg-rose-500/15 text-rose-700 dark:text-rose-300";
+      ? "bg-marigold/30 text-foreground"
+      : "bg-accent text-primary";
   return (
-    <Card className="border-border/60">
+    <Card>
       <CardContent className="p-5 space-y-2">
         <div className="flex items-center justify-between">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+          <p className="text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
             {label}
           </p>
-          <div className={`h-8 w-8 rounded-lg grid place-items-center ${toneClass}`}>
+          <div className={`h-10 w-10 rounded-full grid place-items-center ${toneClass}`}>
             {icon}
           </div>
         </div>
-        <p className="text-2xl font-bold tracking-tight">{value}</p>
-        <p className="text-[11px] text-muted-foreground">{sub}</p>
+        <p className="font-display text-3xl font-semibold tracking-tight">{value}</p>
+        <p className="text-xs font-semibold text-muted-foreground">{sub}</p>
       </CardContent>
     </Card>
   );
@@ -522,9 +522,9 @@ type LeaderboardResp = {
 };
 
 const RANK_STYLES = [
-  "bg-gradient-to-br from-amber-400 to-yellow-500 text-white", // 1st - gold
-  "bg-gradient-to-br from-slate-300 to-slate-400 text-white", // 2nd - silver
-  "bg-gradient-to-br from-orange-400 to-orange-600 text-white", // 3rd - bronze
+  "bg-marigold text-foreground", // 1st - gold
+  "bg-secondary text-foreground", // 2nd - silver
+  "bg-accent text-foreground", // 3rd - bronze
 ];
 
 function RevenueLeaderboard() {
@@ -550,18 +550,18 @@ function RevenueLeaderboard() {
   const items = q.data.items;
 
   return (
-    <Card className="border-border/60">
+    <Card>
       <CardContent className="p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-semibold flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-amber-500" /> Revenue leaderboard
+            <h3 className="font-display text-lg font-semibold flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-marigold" /> Revenue leaderboard
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               Top {items.length} students by total captured revenue
             </p>
           </div>
-          <Badge variant="secondary" className="text-[10px]">
+          <Badge variant="secondary" className="text-xs">
             {q.data.totalStudents} paying students
           </Badge>
         </div>
@@ -575,10 +575,10 @@ function RevenueLeaderboard() {
               const heights = ["h-20", "h-24", "h-16"];
               return (
                 <div key={item.userId} className="flex flex-col items-center justify-end">
-                  <div className={`rounded-xl ${style} ${heights[idx]} w-full flex flex-col items-center justify-center p-2 shadow-md`}>
+                  <div className={`rounded-xl ${style} ${heights[idx]} w-full flex flex-col items-center justify-center p-2 shadow-soft`}>
                     <span className="text-lg font-bold">{item.rank}</span>
-                    <span className="text-[10px] truncate w-full text-center">{item.name.split(" ")[0]}</span>
-                    <span className="text-[9px] opacity-80">{formatINR(item.totalRevenue)}</span>
+                    <span className="text-xs font-bold truncate w-full text-center">{item.name.split(" ")[0]}</span>
+                    <span className="text-xs font-semibold">{formatINR(item.totalRevenue)}</span>
                   </div>
                 </div>
               );
@@ -591,7 +591,7 @@ function RevenueLeaderboard() {
           {items.map((item) => (
             <div
               key={item.userId}
-              className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/20 transition border border-border/40"
+              className="flex items-center gap-3 p-2.5 rounded-2xl hover:bg-accent/30 transition border border-border/60"
             >
               <div
                 className={`h-7 w-7 rounded-full grid place-items-center text-xs font-bold shrink-0 ${
@@ -604,12 +604,12 @@ function RevenueLeaderboard() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">{item.name}</p>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {item.paymentCount} payment{item.paymentCount === 1 ? "" : "s"} · {item.attendanceCount} attended
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className="font-bold text-sm text-emerald-700 dark:text-emerald-400">
+                <p className="font-bold text-sm text-success">
                   {formatINR(item.totalRevenue)}
                 </p>
               </div>
@@ -635,11 +635,11 @@ type RetentionResp = {
 };
 
 const COHORT_CONFIG = [
-  { key: "active", label: "Active", desc: "Last 3 days", color: "bg-emerald-500", text: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-500/10" },
-  { key: "engaged", label: "Engaged", desc: "Last 7 days", color: "bg-teal-500", text: "text-teal-700 dark:text-teal-300", bg: "bg-teal-500/10" },
-  { key: "atRisk", label: "At risk", desc: "7-14 days", color: "bg-amber-500", text: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10" },
-  { key: "churning", label: "Churning", desc: "14-30 days", color: "bg-orange-500", text: "text-orange-700 dark:text-orange-300", bg: "bg-orange-500/10" },
-  { key: "churned", label: "Churned", desc: "30+ days", color: "bg-rose-500", text: "text-rose-700 dark:text-rose-300", bg: "bg-rose-500/10" },
+  { key: "active", label: "Active", desc: "Last 3 days", color: "bg-success", text: "text-success", bg: "bg-success-soft" },
+  { key: "engaged", label: "Engaged", desc: "Last 7 days", color: "bg-chart-4", text: "text-success", bg: "bg-success-soft" },
+  { key: "atRisk", label: "At risk", desc: "7-14 days", color: "bg-marigold", text: "text-foreground", bg: "bg-marigold/20" },
+  { key: "churning", label: "Churning", desc: "14-30 days", color: "bg-saffron", text: "text-primary", bg: "bg-accent" },
+  { key: "churned", label: "Churned", desc: "30+ days", color: "bg-primary", text: "text-primary", bg: "bg-accent" },
 ] as const;
 
 function RetentionCohorts() {
@@ -668,11 +668,11 @@ function RetentionCohorts() {
   const maxCount = Math.max(...COHORT_CONFIG.map((c) => data.cohorts[c.key].count), 1);
 
   return (
-    <Card className="border-border/60">
+    <Card>
       <CardContent className="p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-semibold flex items-center gap-2">
+            <h3 className="font-display text-lg font-semibold flex items-center gap-2">
               <Users className="h-4 w-4 text-primary" /> Retention cohorts
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -680,12 +680,12 @@ function RetentionCohorts() {
             </p>
           </div>
           <Badge
-            className={`border-transparent text-[10px] ${
+            className={`border-transparent text-xs ${
               data.retentionRate >= 60
-                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                ? "bg-success-soft text-success"
                 : data.retentionRate >= 30
-                ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                : "bg-rose-500/15 text-rose-700 dark:text-rose-300"
+                ? "bg-marigold/30 text-foreground"
+                : "bg-accent text-primary"
             }`}
           >
             {data.retentionRate}% retention
@@ -701,15 +701,15 @@ function RetentionCohorts() {
               <div key={c.key} className="flex items-center gap-3">
                 <div className="w-20 text-right shrink-0">
                   <p className="text-xs font-medium">{c.label}</p>
-                  <p className="text-[9px] text-muted-foreground">{c.desc}</p>
+                  <p className="text-xs text-muted-foreground">{c.desc}</p>
                 </div>
-                <div className="flex-1 h-7 rounded-full bg-muted/30 overflow-hidden relative">
+                <div className="flex-1 h-7 rounded-full bg-muted overflow-hidden relative">
                   <div
                     className={`h-full ${c.color} rounded-full transition-all duration-500 flex items-center justify-end pr-2`}
                     style={{ width: `${Math.max(width, cohort.count > 0 ? 8 : 0)}%` }}
                   >
                     {cohort.count > 0 && (
-                      <span className="text-[10px] font-bold text-white">
+                      <span className={`text-xs font-extrabold ${c.key === "active" || c.key === "churned" ? "text-white" : "text-foreground"}`}>
                         {cohort.count}
                       </span>
                     )}
@@ -723,7 +723,7 @@ function RetentionCohorts() {
         {/* At-risk students list */}
         {data.cohorts.atRisk.students.length > 0 && (
           <div className="pt-2 border-t border-border/40 space-y-1.5">
-            <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+            <p className="text-xs font-semibold text-foreground">
               Students at risk of churning:
             </p>
             {data.cohorts.atRisk.students.map((s: any) => (
@@ -771,12 +771,12 @@ function AdminFeedbackSummary() {
   const maxDist = Math.max(...distribution.map((d) => d.count), 1);
 
   return (
-    <Card className="border-border/60">
+    <Card>
       <CardContent className="p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-semibold flex items-center gap-2">
-              <Star className="h-4 w-4 text-amber-500" /> Class feedback
+            <h3 className="font-display text-lg font-semibold flex items-center gap-2">
+              <Star className="h-4 w-4 text-marigold" /> Class feedback
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               {summary.totalCount} rating{summary.totalCount === 1 ? "" : "s"} across all classes
@@ -784,10 +784,10 @@ function AdminFeedbackSummary() {
           </div>
           <div className="text-right">
             <div className="flex items-center gap-1">
-              <span className="text-3xl font-bold text-amber-500">{summary.avgRating}</span>
-              <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+              <span className="text-3xl font-bold text-marigold">{summary.avgRating}</span>
+              <Star className="h-5 w-5 fill-marigold text-marigold" />
             </div>
-            <p className="text-[10px] text-muted-foreground">average</p>
+            <p className="text-xs text-muted-foreground">average</p>
           </div>
         </div>
 
@@ -796,11 +796,11 @@ function AdminFeedbackSummary() {
           {distribution.slice().reverse().map((d) => (
             <div key={d.star} className="flex items-center gap-2 text-xs">
               <span className="w-8 text-right text-muted-foreground flex items-center gap-0.5 justify-end">
-                {d.star} <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                {d.star} <Star className="h-3 w-3 fill-marigold text-marigold" />
               </span>
               <div className="flex-1 h-4 rounded-full bg-muted/30 overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all"
+                  className="h-full bg-marigold rounded-full transition-all"
                   style={{ width: `${(d.count / maxDist) * 100}%` }}
                 />
               </div>
@@ -815,7 +815,7 @@ function AdminFeedbackSummary() {
             <p className="text-xs font-semibold">Recent comments:</p>
             {recentComments.map((c) => (
               <div key={c.id} className="text-xs text-muted-foreground">
-                <span className="text-amber-500 font-medium">{c.rating}★</span>{" "}
+                <span className="text-marigold font-medium">{c.rating}★</span>{" "}
                 {c.comment}{" "}
                 <span className="text-muted-foreground/60">— {c.className}</span>
               </div>
@@ -831,21 +831,21 @@ function AdminFeedbackSummary() {
               <AreaChart data={q.data.monthsTrend} margin={{ left: -16, right: 8, top: 8, bottom: 0 }}>
                 <defs>
                   <linearGradient id="ratingTrend" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="#F5A623" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="#F5A623" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
-                <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="#9ca3af" />
-                <YAxis domain={[0, 5]} tick={{ fontSize: 10 }} stroke="#9ca3af" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#EBCDB8" opacity={0.3} />
+                <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="#5A372E" />
+                <YAxis domain={[0, 5]} tick={{ fontSize: 10 }} stroke="#5A372E" />
                 <Tooltip
                   formatter={(v: number) => [`${v} ★`, "Avg rating"]}
-                  contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
+                  contentStyle={{ borderRadius: 16, background: "#FFFBF2", color: "#3B1F1A", border: "1px solid #EBCDB8", fontSize: 12 }}
                 />
                 <Area
                   type="monotone"
                   dataKey="avgRating"
-                  stroke="#f59e0b"
+                  stroke="#F5A623"
                   strokeWidth={2}
                   fill="url(#ratingTrend)"
                   name="Avg rating"

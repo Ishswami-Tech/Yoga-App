@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { run } from "@/lib/api";
 import { generateClasses } from "@/lib/services/class-generator";
 import { sendReminders, retryFailedMessages } from "@/lib/services/reminders";
+import { z } from "zod";
 import { audit } from "@/lib/services/audit";
 
 export const runtime = "nodejs";
@@ -13,7 +14,11 @@ export async function POST(req: NextRequest) {
   return run(async () => {
     const admin = await requireRole("ADMIN");
     const url = new URL(req.url);
-    const job = url.searchParams.get("job") ?? "generate";
+    const jobParsed = z.enum(["generate", "remind", "retry"]).safeParse(url.searchParams.get("job") ?? "generate");
+    if (!jobParsed.success) {
+      return NextResponse.json({ error: "unknown job", code: "BAD_JOB" }, { status: 400 });
+    }
+    const job = jobParsed.data;
     let result: unknown;
     if (job === "generate") {
       result = await generateClasses();

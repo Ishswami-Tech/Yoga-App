@@ -1,13 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Nunito_Sans, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+import { APP_NAME } from "@/lib/brand";
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
+  weight: ["600", "700"],
+  display: "swap",
+});
+
+const nunitoSans = Nunito_Sans({
+  variable: "--font-nunito-sans",
+  subsets: ["latin"],
+  weight: ["400", "600", "700", "800"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -16,9 +26,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Prana Live Yoga — Daily Live Classes, ₹500/month",
+  title: `${APP_NAME} — Daily Live Classes`,
   description:
-    "Subscription-based live yoga platform with daily Google Meet classes, automated WhatsApp reminders, and ₹500/month recurring membership.",
+    "Subscription-based live yoga platform with daily Google Meet classes, automated WhatsApp reminders, and a simple monthly recurring membership.",
   keywords: [
     "yoga",
     "live yoga",
@@ -27,7 +37,7 @@ export const metadata: Metadata = {
     "google meet",
     "whatsapp reminder",
   ],
-  authors: [{ name: "Prana Live Yoga" }],
+  authors: [{ name: APP_NAME }],
 };
 
 export default function RootLayout({
@@ -38,7 +48,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${nunitoSans.variable} ${fraunces.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground`}
       >
         <Providers>{children}</Providers>
         <Toaster />

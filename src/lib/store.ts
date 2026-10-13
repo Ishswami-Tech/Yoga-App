@@ -58,7 +58,8 @@ export type View =
   | "admin-bulk-message"
   | "admin-audit"
   | "admin-analytics"
-  | "admin-settings";
+  | "admin-settings"
+  | "admin-pricing";
 
 type State = {
   user: SessionUser | null;
@@ -132,6 +133,7 @@ export function initViewFromHash(): View {
     "admin-audit",
     "admin-analytics",
     "admin-settings",
+    "admin-pricing",
   ];
   return (known as string[]).includes(h) ? (h as View) : "landing";
 }

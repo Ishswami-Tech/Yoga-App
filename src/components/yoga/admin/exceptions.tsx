@@ -134,7 +134,6 @@ export function ExceptionsView() {
           <>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => qc.invalidateQueries({ queryKey: ["admin", "exceptions"] })}
             >
               <RefreshCw className="h-4 w-4" /> Refresh
@@ -143,7 +142,7 @@ export function ExceptionsView() {
               value={scheduleId}
               onValueChange={setScheduleId}
             >
-              <SelectTrigger size="sm" className="w-44">
+              <SelectTrigger className="h-11 rounded-full font-semibold w-44">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -156,7 +155,6 @@ export function ExceptionsView() {
               </SelectContent>
             </Select>
             <Button
-              size="sm"
               onClick={() => {
                 setAddKey((k) => k + 1);
                 setAddOpen(true);
@@ -194,7 +192,6 @@ export function ExceptionsView() {
           action={
             schedulesQ.data?.items.length ? (
               <Button
-                size="sm"
                 onClick={() => {
                   setAddKey((k) => k + 1);
                   setAddOpen(true);
@@ -206,7 +203,7 @@ export function ExceptionsView() {
           }
         />
       ) : (
-        <Card>
+        <Card className="overflow-hidden py-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -261,9 +258,9 @@ export function ExceptionsView() {
       )}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-3xl">
           <DialogHeader>
-            <DialogTitle>Add exception</DialogTitle>
+            <DialogTitle className="font-display text-xl">Add exception</DialogTitle>
             <DialogDescription>
               NO_CLASS cancels any generated class for that date. SPECIAL just
               flags it (used for guest teachers / different timings).
@@ -309,7 +306,7 @@ function ExceptionForm({
     <>
       <div className="space-y-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">Schedule</Label>
+          <Label className="text-sm font-bold">Schedule</Label>
           <Select value={scheduleId} onValueChange={setScheduleId}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Pick a schedule" />
@@ -324,7 +321,7 @@ function ExceptionForm({
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Date (YYYY-MM-DD)</Label>
+          <Label className="text-sm font-bold">Date (YYYY-MM-DD)</Label>
           <Input
             type="date"
             value={date}
@@ -333,7 +330,7 @@ function ExceptionForm({
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Type</Label>
+          <Label className="text-sm font-bold">Type</Label>
           <Select
             value={type}
             onValueChange={(v) => setType(v as "NO_CLASS" | "SPECIAL")}
@@ -348,7 +345,7 @@ function ExceptionForm({
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Reason (optional)</Label>
+          <Label className="text-sm font-bold">Reason (optional)</Label>
           <Textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -357,7 +354,7 @@ function ExceptionForm({
           />
         </div>
         {type === "NO_CLASS" && (
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">
+          <div className="flex items-start gap-2 rounded-2xl border border-marigold/60 bg-marigold/15 p-3.5 text-xs font-semibold text-foreground">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
             <p>
               Already-generated classes for this date will be marked{" "}

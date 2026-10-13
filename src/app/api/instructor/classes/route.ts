@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
         scheduleName: c.schedule.name,
         meetUrl: c.meetUrl,
         reminderSentAt: c.reminderSentAt,
+        reminderAt: c.reminderAt,
       })),
       upcoming: upcoming.map((c) => ({
         id: c.id,

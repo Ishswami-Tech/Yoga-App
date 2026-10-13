@@ -25,37 +25,37 @@ export function MembershipStateBadge({
     ACTIVE: {
       label: "Active",
       className:
-        "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+        "border-transparent bg-success-soft text-success font-extrabold",
     },
     PENDING: {
       label: "Pending",
       className:
-        "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300",
+        "border-transparent bg-marigold/30 text-foreground font-extrabold",
     },
     EXPIRED: {
       label: "Expired",
       className:
-        "border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300",
+        "border-transparent bg-primary/15 text-primary font-extrabold",
     },
     HALTED: {
       label: "Halted",
       className:
-        "border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300",
+        "border-transparent bg-primary/15 text-primary font-extrabold",
     },
     CANCELLED: {
       label: "Cancelled",
       className:
-        "border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300",
+        "border-transparent bg-primary/15 text-primary font-extrabold",
     },
     NONE: {
       label: "None",
       className:
-        "border-border bg-muted text-muted-foreground",
+        "border-transparent bg-muted text-muted-foreground font-extrabold",
     },
   };
   const c = map[state] ?? map.NONE;
   return (
-    <Badge variant="outline" className={`${c.className} ${className ?? ""}`}>
+    <Badge variant="outline" className={`rounded-full px-3 py-1 ${c.className} ${className ?? ""}`}>
       {c.label}
     </Badge>
   );
@@ -65,7 +65,7 @@ export function MembershipStateBadge({
 
 export function LoadingCard({ lines = 3 }: { lines?: number }) {
   return (
-    <Card>
+    <Card className="rounded-3xl shadow-soft">
       <CardContent className="p-6 space-y-3">
         <div className="flex items-center gap-2">
           <Skeleton className="h-5 w-1/3" />
@@ -99,18 +99,18 @@ export function EmptyState({
 }) {
   const toneClass =
     tone === "warm"
-      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+      ? "bg-marigold/25 text-foreground"
       : tone === "calm"
-      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-      : "bg-muted text-muted-foreground";
+      ? "bg-success-soft text-success"
+      : "bg-rose/50 text-foreground";
   return (
-    <Card className="border-dashed">
+    <Card className="rounded-3xl border-2 border-dashed shadow-none">
       <CardContent className="p-10 flex flex-col items-center text-center gap-4">
         <div className={`h-14 w-14 rounded-2xl grid place-items-center ${toneClass} animate-floaty`}>
           <Icon className="h-7 w-7" />
         </div>
         <div className="space-y-1">
-          <p className="font-semibold text-base">{title}</p>
+          <p className="font-display font-semibold text-xl">{title}</p>
           {description && (
             <p className="text-sm text-muted-foreground max-w-sm">
               {description}
@@ -131,9 +131,9 @@ export function ErrorCard({
   onRetry?: () => void;
 }) {
   return (
-    <Card className="border-rose-500/40">
+    <Card className="rounded-3xl border-2 border-primary/40 shadow-soft">
       <CardContent className="p-6 flex flex-col items-start gap-3">
-        <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+        <div className="flex items-center gap-2 text-primary">
           <AlertCircle className="h-5 w-5" />
           <p className="font-medium">Something went wrong</p>
         </div>
@@ -163,8 +163,8 @@ export function KV({
 }) {
   return (
     <div className="flex items-center justify-between gap-4 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium text-right">{children}</span>
+      <span className="text-muted-foreground font-semibold">{label}</span>
+      <span className="font-extrabold text-right">{children}</span>
     </div>
   );
 }

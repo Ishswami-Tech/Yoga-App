@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatINR } from "@/components/yoga/student/format";
+import { useApp } from "@/lib/store";
 import { PageHeader, ErrorCard, Spinner } from "./shared";
 
 type Settings = {
@@ -67,7 +68,6 @@ export function SettingsView() {
         actions={
           <Button
             variant="outline"
-            size="sm"
             onClick={() => qc.invalidateQueries({ queryKey: ["admin", "settings"] })}
           >
             <RefreshCw className="h-4 w-4" /> Reload
@@ -80,7 +80,7 @@ export function SettingsView() {
           <CardContent className="p-6 space-y-3">
             <Skeleton className="h-5 w-1/3" />
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-9 w-full" />
+              <Skeleton key={i} className="h-11 w-full rounded-full" />
             ))}
             <Skeleton className="h-9 w-32" />
           </CardContent>
@@ -111,10 +111,8 @@ function SettingsForm({
   isPending: boolean;
   onSave: (body: Partial<Settings>) => void;
 }) {
+  const { setView } = useApp();
   const [razorpayPlanId, setRazorpayPlanId] = useState(initial.razorpayPlanId);
-  const [razorpayPlanAmount, setRazorpayPlanAmount] = useState(
-    String(initial.razorpayPlanAmount)
-  );
   const [razorpayPlanCurrency, setRazorpayPlanCurrency] = useState(
     initial.razorpayPlanCurrency
   );
@@ -130,7 +128,6 @@ function SettingsForm({
 
   const dirty =
     razorpayPlanId !== initial.razorpayPlanId ||
-    parseInt(razorpayPlanAmount, 10) !== initial.razorpayPlanAmount ||
     razorpayPlanCurrency !== initial.razorpayPlanCurrency ||
     whatsappTemplate !== initial.whatsappTemplate ||
     parseInt(lookAheadDays, 10) !== initial.lookAheadDays ||
@@ -144,29 +141,25 @@ function SettingsForm({
     /^\d+$/.test(reminderMinutesBefore) &&
     parseInt(reminderMinutesBefore, 10) >= 1 &&
     parseInt(reminderMinutesBefore, 10) <= 180;
-  const amountValid =
-    /^\d+$/.test(razorpayPlanAmount) &&
-    parseInt(razorpayPlanAmount, 10) >= 0;
   const valid =
     dirty &&
     lookAheadValid &&
     reminderValid &&
-    amountValid &&
     razorpayPlanId.trim().length > 0;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {/* Form */}
-      <Card className="lg:col-span-2 border-border/60">
+      <Card className="lg:col-span-2">
         <CardContent className="p-6 space-y-5">
           <div className="flex items-center gap-2">
-            <SettingsIcon className="h-4 w-4 text-primary" />
-            <p className="font-medium">Platform configuration</p>
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-secondary"><SettingsIcon className="h-4 w-4 text-primary" /></span>
+            <p className="font-display text-xl font-semibold">Platform configuration</p>
           </div>
 
           {/* Razorpay section */}
           <section className="space-y-3">
-            <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
               <IndianRupee className="h-3.5 w-3.5" />
               Razorpay subscription plan
             </div>
@@ -180,15 +173,14 @@ function SettingsForm({
             <div className="grid grid-cols-2 gap-3">
               <Field
                 label="Plan amount"
-                hint={`= ${formatINR(parseInt(razorpayPlanAmount, 10) || 0)}`}
+                hint={`= ${formatINR(initial.razorpayPlanAmount)}`}
               >
                 <Input
                   type="number"
                   inputMode="numeric"
-                  value={razorpayPlanAmount}
-                  onChange={(e) => setRazorpayPlanAmount(e.target.value)}
-                  min={0}
-                  step={100}
+                  value={initial.razorpayPlanAmount}
+                  readOnly
+                  disabled
                 />
               </Field>
               <Field label="Currency">
@@ -196,7 +188,7 @@ function SettingsForm({
                   value={razorpayPlanCurrency}
                   onValueChange={setRazorpayPlanCurrency}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="h-11 w-full rounded-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -207,14 +199,20 @@ function SettingsForm({
               </Field>
             </div>
             <p className="text-xs text-muted-foreground">
-              Stored in paise — 50000 = ₹500.00. Students see the equivalent
-              rupee amount on the pricing card and checkout flow.
+              Stored in paise. This field is read-only.{" "}
+              <button
+                type="button"
+                className="inline-flex min-h-11 items-center text-primary font-bold underline underline-offset-2"
+                onClick={() => setView("admin-pricing")}
+              >
+                Change the price in Plan and pricing
+              </button>
             </p>
           </section>
 
           {/* WhatsApp section */}
           <section className="space-y-3 border-t border-border/60 pt-4">
-            <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
               <MessageCircle className="h-3.5 w-3.5" />
               WhatsApp reminder template
             </div>
@@ -233,7 +231,7 @@ function SettingsForm({
 
           {/* Worker timing section */}
           <section className="space-y-3 border-t border-border/60 pt-4">
-            <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
               <CalendarClock className="h-3.5 w-3.5" />
               Class generator timing
             </div>
@@ -255,7 +253,7 @@ function SettingsForm({
               Google Meet events when it runs.
             </p>
 
-            <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground pt-2">
+            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground pt-2">
               <Bell className="h-3.5 w-3.5" />
               Reminder dispatch timing
             </div>
@@ -278,13 +276,12 @@ function SettingsForm({
             </p>
           </section>
 
-          <div className="flex items-center gap-2 pt-2 border-t border-border/60">
+          <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-border/60">
             <Button
               disabled={!valid || isPending}
               onClick={() =>
                 onSave({
                   razorpayPlanId: razorpayPlanId.trim(),
-                  razorpayPlanAmount: parseInt(razorpayPlanAmount, 10),
                   razorpayPlanCurrency,
                   whatsappTemplate: whatsappTemplate.trim(),
                   lookAheadDays: parseInt(lookAheadDays, 10),
@@ -300,7 +297,6 @@ function SettingsForm({
               disabled={!dirty || isPending}
               onClick={() => {
                 setRazorpayPlanId(initial.razorpayPlanId);
-                setRazorpayPlanAmount(String(initial.razorpayPlanAmount));
                 setRazorpayPlanCurrency(initial.razorpayPlanCurrency);
                 setWhatsappTemplate(initial.whatsappTemplate);
                 setLookAheadDays(String(initial.lookAheadDays));
@@ -314,18 +310,18 @@ function SettingsForm({
       </Card>
 
       {/* Preview side card */}
-      <Card className="border-border/60">
+      <Card className="h-fit">
         <CardContent className="p-6 space-y-4">
           <div className="flex items-center gap-2">
-            <IndianRupee className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
-            <p className="font-medium">Pricing preview</p>
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-success-soft"><IndianRupee className="h-4 w-4 text-success" /></span>
+            <p className="font-display text-xl font-semibold">Pricing preview</p>
           </div>
-          <div className="rounded-lg bg-brand-gradient text-primary-foreground p-5">
-            <p className="text-xs opacity-80">Monthly membership</p>
-            <p className="text-3xl font-bold tracking-tight">
-              {formatINR(parseInt(razorpayPlanAmount, 10) || 0)}
+          <div className="rounded-3xl bg-primary text-primary-foreground p-5 shadow-soft">
+            <p className="text-sm font-bold">Monthly membership</p>
+            <p className="font-display text-4xl font-semibold tracking-tight">
+              {formatINR(initial.razorpayPlanAmount)}
             </p>
-            <p className="text-xs opacity-80 mt-1">
+            <p className="text-sm font-semibold mt-1">
               {razorpayPlanCurrency} · billed monthly
             </p>
           </div>
@@ -363,9 +359,9 @@ function Field({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <Label className="text-xs">{label}</Label>
+        <Label className="text-sm font-bold">{label}</Label>
         {hint && (
-          <span className="text-[10px] text-muted-foreground">{hint}</span>
+          <span className="text-xs font-semibold text-muted-foreground">{hint}</span>
         )}
       </div>
       {children}

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
-import { run, fromZodError, notFound } from "@/lib/api";
+import { run, fail, fromZodError, notFound } from "@/lib/api";
 import { adminUserUpdateSchema } from "@/lib/validation";
+import { normalizePhone, phoneCandidates, toCanonical } from "@/lib/phone";
 import { audit } from "@/lib/services/audit";
 
 export const runtime = "nodejs";
@@ -17,6 +18,21 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!parsed.success) return fromZodError(parsed.error);
     const existing = await db.user.findUnique({ where: { id } });
     if (!existing) return notFound("User");
+    let waCanonical: string | null | undefined;
+    if (parsed.data.whatsappNumber !== undefined) {
+      if (parsed.data.whatsappNumber === null || parsed.data.whatsappNumber.trim() === "") {
+        waCanonical = null;
+      } else {
+        const wa = normalizePhone(parsed.data.whatsappNumber);
+        if (!wa) return fail("Enter a valid WhatsApp number", 422, { code: "INVALID_PHONE" });
+        const taken = await db.user.findFirst({
+          where: { whatsappNumber: { in: phoneCandidates(wa) }, id: { not: id } },
+          select: { id: true },
+        });
+        if (taken) return fail("This WhatsApp number already belongs to another account", 409, { code: "PHONE_TAKEN" });
+        waCanonical = toCanonical(wa);
+      }
+    }
     const updated = await db.user.update({
       where: { id },
       data: {
@@ -25,7 +41,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         ...(parsed.data.name ? { name: parsed.data.name } : {}),
         ...(parsed.data.email ? { email: parsed.data.email } : {}),
         ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone ?? null } : {}),
-        ...(parsed.data.whatsappNumber !== undefined ? { whatsappNumber: parsed.data.whatsappNumber ?? null } : {}),
+        ...(waCanonical !== undefined ? { whatsappNumber: waCanonical } : {}),
       },
     });
     await audit({

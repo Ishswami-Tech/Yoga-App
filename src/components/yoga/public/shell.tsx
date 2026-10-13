@@ -1,4 +1,5 @@
 "use client";
+import { usePlan } from "@/hooks/use-plan";
 import { ReactNode } from "react";
 import { useApp } from "@/lib/store";
 import { Button } from "@/components/ui/button";
@@ -8,44 +9,46 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Moon, Sun, Menu, Sparkles } from "lucide-react";
+import { Moon, Sun, Menu } from "lucide-react";
+import { LotusMark, HillBand } from "@/components/yoga/art/sunrise";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 
+import { APP_NAME, SUPPORT_EMAIL, SUPPORT_PHONE } from "@/lib/brand";
 export function PublicShell({ children }: { children: ReactNode }) {
+  const plan = usePlan();
   const { openAuth, setView } = useApp();
   const { theme, setTheme } = useTheme();
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-40 w-full bg-secondary/90 backdrop-blur supports-[backdrop-filter]:bg-secondary/80 shadow-[0_6px_20px_-12px_rgb(59_31_26/0.35)]">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <button
             onClick={() => setView("landing")}
-            className="flex items-center gap-2 group"
+            className="flex items-center gap-3 group min-h-11"
+            aria-label={`${APP_NAME} home`}
           >
-            <span className="grid place-items-center h-9 w-9 rounded-full bg-brand-gradient text-primary-foreground shadow-sm group-hover:scale-105 transition">
-              <Sparkles className="h-5 w-5" />
-            </span>
-            <span className="text-lg font-semibold tracking-tight">
-              Prana <span className="text-brand-gradient">Live Yoga</span>
+            <LotusMark size={40} className="group-hover:scale-105 transition" />
+            <span className="font-display text-2xl font-semibold tracking-tight">
+              <span className="text-brand-gradient">{APP_NAME}</span>
             </span>
           </button>
 
-          <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
-            <button onClick={() => setView("landing")} className="hover:text-foreground transition">
+          <nav className="hidden md:flex items-center gap-6 text-[15px] font-bold text-foreground">
+            <button onClick={() => setView("landing")} className="inline-flex min-h-11 items-center px-1 hover:text-primary transition">
               Home
             </button>
-            <a href="#features" className="hover:text-foreground transition">
+            <a href="#features" className="inline-flex min-h-11 items-center px-1 hover:text-primary transition">
               Features
             </a>
-            <a href="#how" className="hover:text-foreground transition">
+            <a href="#how" className="inline-flex min-h-11 items-center px-1 hover:text-primary transition">
               How it works
             </a>
-            <a href="#pricing" className="hover:text-foreground transition">
+            <a href="#pricing" className="inline-flex min-h-11 items-center px-1 hover:text-primary transition">
               Pricing
             </a>
-            <a href="#faq" className="hover:text-foreground transition">
+            <a href="#faq" className="inline-flex min-h-11 items-center px-1 hover:text-primary transition">
               FAQ
             </a>
           </nav>
@@ -70,7 +73,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
             </Button>
             <Button
               size="sm"
-              className="bg-brand-gradient text-primary-foreground hover:opacity-90"
+              className="bg-primary text-primary-foreground hover:opacity-90 px-6 h-11"
               onClick={() => openAuth("register")}
             >
               Get started
@@ -99,23 +102,22 @@ export function PublicShell({ children }: { children: ReactNode }) {
 
       <main className="flex-1">{children}</main>
 
-      <footer className="mt-auto border-t border-border/60 bg-secondary/30">
+      <HillBand base="#3B1F1A" className="mt-10 -mb-px" />
+      <footer className="mt-auto bg-[#3B1F1A] text-[#FFF4E0]">
         <div className="container mx-auto px-4 py-10 grid gap-8 md:grid-cols-4">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <span className="grid place-items-center h-8 w-8 rounded-full bg-brand-gradient text-primary-foreground">
-                <Sparkles className="h-4 w-4" />
-              </span>
-              <span className="font-semibold">Prana Live Yoga</span>
+              <LotusMark size={36} />
+              <span className="font-display text-xl font-semibold">{APP_NAME}</span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-[#FFE4C4]">
               Daily live classes, fresh Google Meet every morning, and a gentle
               WhatsApp reminder 15 minutes before class.
             </p>
           </div>
           <div>
-            <h4 className="text-sm font-semibold mb-3">Platform</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
+            <h4 className="font-display text-base font-semibold mb-3">Platform</h4>
+            <ul className="space-y-2 text-sm text-[#FFE4C4]">
               <li><Link href="#features">Features</Link></li>
               <li><Link href="#pricing">Pricing</Link></li>
               <li><Link href="#how">How it works</Link></li>
@@ -123,8 +125,8 @@ export function PublicShell({ children }: { children: ReactNode }) {
             </ul>
           </div>
           <div>
-            <h4 className="text-sm font-semibold mb-3">For business</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
+            <h4 className="font-display text-base font-semibold mb-3">For business</h4>
+            <ul className="space-y-2 text-sm text-[#FFE4C4]">
               <li>Instructors</li>
               <li>Admins</li>
               <li>Automation &amp; webhooks</li>
@@ -132,16 +134,17 @@ export function PublicShell({ children }: { children: ReactNode }) {
             </ul>
           </div>
           <div>
-            <h4 className="text-sm font-semibold mb-3">Contact</h4>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>support@pranayoga.app</li>
+            <h4 className="font-display text-base font-semibold mb-3">Contact</h4>
+            <ul className="space-y-2 text-sm text-[#FFE4C4]">
+              {SUPPORT_EMAIL && <li>{SUPPORT_EMAIL}</li>}
+              {SUPPORT_PHONE && <li>{SUPPORT_PHONE}</li>}
               <li>Mon–Sun, 6 AM–9 PM IST</li>
               <li>Made with 🧘 in India</li>
             </ul>
           </div>
         </div>
-        <div className="border-t border-border/60 py-4 text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Prana Live Yoga. Membership ₹500/month.
+        <div className="border-t border-[#FFF4E0]/20 py-4 text-center text-xs text-[#FFE4C4]">
+          © {new Date().getFullYear()} {APP_NAME}. Membership {plan.display}/month.
           Powered by Google Meet &amp; Meta WhatsApp Business API.
         </div>
       </footer>

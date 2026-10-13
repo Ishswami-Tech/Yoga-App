@@ -4,14 +4,28 @@
 // provider record. "Active membership" = the user has at least one
 // Subscription with status ACTIVE and an endDate in the future (or null).
 
+import { getPlanAmount } from "@/lib/services/pricing";
 import { db } from "@/lib/db";
 import {
   RAZORPAY_PLAN_AMOUNT,
   RAZORPAY_PLAN_CURRENCY,
-  RAZORPAY_PLAN_ID,
+  getPublicKeyId,
   razorpay,
+  type RazorpaySubscriptionEntity,
 } from "@/lib/providers/razorpay";
 import { Prisma } from "@prisma/client";
+import { createHash } from "node:crypto";
+
+export class SubscriptionError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status = 409
+  ) {
+    super(message);
+    this.name = "SubscriptionError";
+  }
+}
 
 export type MembershipState =
   | "NONE"
@@ -21,9 +35,79 @@ export type MembershipState =
   | "HALTED" // provider paused retries
   | "CANCELLED";
 
+type SubscriptionRow = Awaited<ReturnType<typeof db.subscription.findFirst>>;
+type PaymentOrderRow = Awaited<ReturnType<typeof db.paymentOrder.findFirst>>;
+
+// Membership state with one-time payments considered: a PAID PaymentOrder whose coverage has not
+// ended keeps the membership ACTIVE even when there is no (active) Razorpay subscription.
 export async function getMembershipState(userId: string): Promise<{
   state: MembershipState;
-  subscription?: Awaited<ReturnType<typeof db.subscription.findFirst>>;
+  subscription?: SubscriptionRow;
+  order?: PaymentOrderRow;
+}> {
+  const fromSubscription = await getSubscriptionState(userId);
+  if (fromSubscription.state === "ACTIVE") return fromSubscription;
+
+  const order = await db.paymentOrder.findFirst({
+    where: { userId, status: "PAID", coversUntil: { gt: new Date() } },
+    orderBy: { coversUntil: "desc" },
+  });
+  if (order) return { state: "ACTIVE", order };
+  return fromSubscription;
+}
+
+export type MembershipSummary = {
+  id: string;
+  status: string;
+  amount: number;
+  currency: string;
+  startDate: Date | null;
+  endDate: Date | null;
+  nextBillingDate: Date | null;
+  /** Razorpay subscription id, or the gateway order id for one-time payments. */
+  razorpaySubscriptionId: string;
+  billing: "RECURRING" | "ONE_TIME";
+};
+
+// One shape for the UI whether access comes from a subscription or a one-time order.
+export function summarizeMembership(m: {
+  subscription?: SubscriptionRow;
+  order?: PaymentOrderRow;
+}): MembershipSummary | null {
+  if (m.subscription) {
+    const sub = m.subscription;
+    return {
+      id: sub.id,
+      status: sub.status,
+      amount: sub.amount,
+      currency: sub.currency,
+      startDate: sub.startDate,
+      endDate: sub.endDate,
+      nextBillingDate: sub.nextBillingDate,
+      razorpaySubscriptionId: sub.razorpaySubscriptionId,
+      billing: "RECURRING",
+    };
+  }
+  if (m.order) {
+    const order = m.order;
+    return {
+      id: order.id,
+      status: "ACTIVE",
+      amount: order.amount,
+      currency: order.currency,
+      startDate: order.coversFrom,
+      endDate: order.coversUntil,
+      nextBillingDate: null,
+      razorpaySubscriptionId: order.providerOrderId,
+      billing: "ONE_TIME",
+    };
+  }
+  return null;
+}
+
+async function getSubscriptionState(userId: string): Promise<{
+  state: MembershipState;
+  subscription?: SubscriptionRow;
 }> {
   const sub = await db.subscription.findFirst({
     where: { userId },
@@ -32,7 +116,11 @@ export async function getMembershipState(userId: string): Promise<{
   if (!sub) return { state: "NONE" };
 
   const now = new Date();
-  if (sub.status === "CANCELLED") return { state: "CANCELLED", subscription: sub };
+  // A cancelled subscription keeps access until the end of the period that was already paid for.
+  if (sub.status === "CANCELLED") {
+    if (sub.endDate && sub.endDate > now) return { state: "ACTIVE", subscription: sub };
+    return { state: "CANCELLED", subscription: sub };
+  }
   if (sub.status === "HALTED") return { state: "HALTED", subscription: sub };
   if (sub.status === "ACTIVE") {
     if (sub.endDate && sub.endDate < now) return { state: "EXPIRED", subscription: sub };
@@ -50,24 +138,38 @@ export async function hasActiveMembership(userId: string): Promise<boolean> {
 }
 
 // Create a Razorpay subscription for the student and persist it in CREATED
-// state. Returns only the data the browser needs for Checkout.
+// state. Returns only what the browser needs for Checkout (public key id only).
 export async function createSubscriptionForUser(opts: {
   userId: string;
   userEmail: string;
   userName: string;
 }) {
-  // Reuse an existing CREATED subscription if one exists for this user to
-  // avoid duplicate plans.
+  const keyId = getPublicKeyId(); // throws PaymentsUnavailableError when not configured
+  const amount = await getPlanAmount();
+
+  const current = await getSubscriptionState(opts.userId);
+  if (current.state === "ACTIVE" && current.subscription?.status === "ACTIVE") {
+    throw new SubscriptionError("ALREADY_ACTIVE", "You already have an active membership");
+  }
+
+  // Reuse a recent un-paid checkout at the same price instead of piling up Razorpay subscriptions.
   const existing = await db.subscription.findFirst({
-    where: { userId: opts.userId, status: "CREATED" },
+    where: {
+      userId: opts.userId,
+      status: "CREATED",
+      amount,
+      createdAt: { gt: new Date(Date.now() - 6 * 3600 * 1000) },
+    },
+    orderBy: { createdAt: "desc" },
   });
   if (existing) {
     return {
+      subscriptionId: existing.razorpaySubscriptionId,
+      keyId,
       razorpaySubscriptionId: existing.razorpaySubscriptionId,
       razorpayPlanId: existing.razorpayPlanId,
       amount: existing.amount,
       currency: existing.currency,
-      shortUrl: `https://rzp.io/i/${existing.razorpaySubscriptionId.slice(-6)}`,
       status: existing.status,
     };
   }
@@ -76,6 +178,7 @@ export async function createSubscriptionForUser(opts: {
     userId: opts.userId,
     userEmail: opts.userEmail,
     userName: opts.userName,
+    amount,
   });
 
   await db.subscription.create({
@@ -89,127 +192,246 @@ export async function createSubscriptionForUser(opts: {
     },
   });
 
-  return created;
+  return {
+    subscriptionId: created.razorpaySubscriptionId,
+    keyId,
+    razorpaySubscriptionId: created.razorpaySubscriptionId,
+    razorpayPlanId: created.razorpayPlanId,
+    amount: created.amount,
+    currency: created.currency,
+    status: created.status,
+  };
 }
 
-// Server-side verification of the Checkout result. The browser is never
-// trusted; we only persist/activate after a verified Razorpay event arrives
-// via webhook. This helper is used by the manual "verify" action in the dev
-// harness and would be the same code path as a Checkout callback.
+// Map a Razorpay subscription entity status to our local status. Returns null when the entity
+// status must not change local state (e.g. "created", "authenticated", "pending" retries).
+export function mapEntityStatus(status: string | undefined): string | null {
+  switch ((status ?? "").toLowerCase()) {
+    case "active":
+      return "ACTIVE";
+    case "paused":
+    case "halted":
+      return "HALTED";
+    case "cancelled":
+      return "CANCELLED";
+    case "completed":
+    case "expired":
+      return "EXPIRED";
+    default:
+      return null;
+  }
+}
+
+function toDate(unixSeconds: number | null | undefined): Date | undefined {
+  return typeof unixSeconds === "number" && unixSeconds > 0 ? new Date(unixSeconds * 1000) : undefined;
+}
+
+// Apply a subscription entity fetched from the Razorpay API (never from the browser) to the local row.
+export async function syncSubscriptionFromEntity(
+  localId: string,
+  entity: RazorpaySubscriptionEntity
+): Promise<string> {
+  const next = mapEntityStatus(entity.status);
+  const start = toDate(entity.current_start);
+  const end = toDate(entity.current_end);
+  const charge = toDate(entity.charge_at);
+  const sub = await db.subscription.update({
+    where: { id: localId },
+    data: {
+      ...(next ? { status: next } : {}),
+      ...(start ? { startDate: start } : {}),
+      ...(end ? { endDate: end } : {}),
+      ...(charge ? { nextBillingDate: charge } : {}),
+    },
+  });
+  return sub.status;
+}
+
+// Server-side verification of the Checkout result. The browser is never trusted: the signature is
+// checked, the subscription must belong to the caller, and the state is confirmed against the
+// Razorpay API before it is marked ACTIVE. The webhook applies the same state idempotently.
 export async function verifyCheckout(opts: {
+  userId: string;
   razorpaySubscriptionId: string;
   razorpayPaymentId: string;
   razorpaySignature: string;
-}): Promise<{ verified: boolean }> {
+}): Promise<{ verified: boolean; status?: string }> {
+  const local = await db.subscription.findUnique({
+    where: { razorpaySubscriptionId: opts.razorpaySubscriptionId },
+  });
+  if (!local || local.userId !== opts.userId) return { verified: false };
+
   const ok = razorpay.verifyPaymentSignature(
     opts.razorpaySubscriptionId,
     opts.razorpayPaymentId,
     opts.razorpaySignature
   );
   if (!ok) return { verified: false };
-  // The actual state change happens in the webhook processor; here we just
-  // confirm the signature so the client can show a success screen.
-  return { verified: true };
+
+  const entity = await razorpay.fetchSubscription(opts.razorpaySubscriptionId);
+  if (entity.id !== opts.razorpaySubscriptionId) return { verified: false };
+  const status = await syncSubscriptionFromEntity(local.id, entity);
+  return { verified: true, status };
 }
 
-// Map a Razorpay webhook event to local state changes, transactionally.
-// Returns whether the event was actually applied (vs. ignored duplicate).
+// Cancel / pause / resume through the real Razorpay API, then mirror the returned state locally.
+// The matching webhook arrives later and is applied idempotently.
+export async function changeSubscriptionBilling(
+  sub: { id: string; razorpaySubscriptionId: string },
+  action: "cancel_now" | "cancel_at_cycle_end" | "pause" | "resume"
+): Promise<string> {
+  let entity: RazorpaySubscriptionEntity;
+  if (action === "pause") entity = await razorpay.pauseSubscription(sub.razorpaySubscriptionId);
+  else if (action === "resume") entity = await razorpay.resumeSubscription(sub.razorpaySubscriptionId);
+  else entity = await razorpay.cancelSubscription(sub.razorpaySubscriptionId, action === "cancel_at_cycle_end");
+
+  if (action === "cancel_at_cycle_end") {
+    // Razorpay keeps the subscription "active" until the cycle ends; the member has opted out now.
+    const end = toDate(entity.current_end);
+    await db.subscription.update({
+      where: { id: sub.id },
+      data: { status: "CANCELLED", ...(end ? { endDate: end } : {}) },
+    });
+    return "CANCELLED";
+  }
+  return syncSubscriptionFromEntity(sub.id, entity);
+}
+
+function webhookStatus(event: string): string | null {
+  switch (event) {
+    case "subscription.activated":
+    case "subscription.charged":
+    case "subscription.resumed":
+      return "ACTIVE";
+    case "subscription.paused":
+    case "subscription.halted":
+      return "HALTED";
+    case "subscription.cancelled":
+      return "CANCELLED";
+    case "subscription.completed":
+    case "subscription.expired":
+      return "EXPIRED";
+    default:
+      // authenticated / pending / updated / payment.failed: no status change here.
+      return null;
+  }
+}
+
+// Map a verified Razorpay webhook event to local state changes, transactionally and idempotently
+// (WebhookEvent row keyed by provider + Razorpay event id).
 export async function applyRazorpayEvent(
   event: { event: string; payload: any },
   eventId: string
 ): Promise<{ applied: boolean; reason?: string }> {
-  // Idempotency: WebhookEvent row keyed by (provider, eventId).
-  // Create the row up-front so concurrent webhooks cannot double-process.
+  const payloadHash = createHash("sha256").update(JSON.stringify(event.payload ?? {})).digest("hex");
+  const where = { provider_eventId: { provider: "razorpay", eventId } };
   try {
     await db.webhookEvent.create({
-      data: {
-        provider: "razorpay",
-        eventId,
-        eventType: event.event,
-        payloadHash: JSON.stringify(event.payload).slice(0, 64),
-        status: "PROCESSING",
-      },
+      data: { provider: "razorpay", eventId, eventType: event.event, payloadHash, status: "PROCESSING" },
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      return { applied: false, reason: "duplicate_event" };
+      // A previously FAILED event may be retried by Razorpay; anything else is a duplicate.
+      const claimed = await db.webhookEvent.updateMany({
+        where: { provider: "razorpay", eventId, status: "FAILED" },
+        data: { status: "PROCESSING", errorMessage: null },
+      });
+      if (claimed.count === 0) return { applied: false, reason: "duplicate_event" };
+    } else {
+      throw e;
     }
-    throw e;
   }
+
+  const finish = (status: string, errorMessage?: string) =>
+    db.webhookEvent.update({
+      where,
+      data: { status, processedAt: new Date(), ...(errorMessage ? { errorMessage } : {}) },
+    });
 
   try {
     const subEntity = event.payload?.subscription?.entity;
     const payEntity = event.payload?.payment?.entity;
-    if (!subEntity?.id) {
-      await db.webhookEvent.update({
-        where: { provider_eventId: { provider: "razorpay", eventId } },
-        data: { status: "IGNORED", processedAt: new Date() },
+
+    const subscriptionId: string | undefined =
+      subEntity?.id ?? payEntity?.subscription_id ?? payEntity?.notes?.subscription_id;
+    let subscription = subscriptionId
+      ? await db.subscription.findUnique({ where: { razorpaySubscriptionId: subscriptionId } })
+      : null;
+    if (!subscription && payEntity?.id) {
+      const prior = await db.payment.findUnique({
+        where: { razorpayPaymentId: payEntity.id },
+        include: { subscription: true },
       });
+      subscription = prior?.subscription ?? null;
+    }
+    if (!subscriptionId && !subscription) {
+      await finish("IGNORED");
       return { applied: false, reason: "no_subscription_in_payload" };
     }
-
-    const subscription = await db.subscription.findUnique({
-      where: { razorpaySubscriptionId: subEntity.id },
-    });
     if (!subscription) {
-      await db.webhookEvent.update({
-        where: { provider_eventId: { provider: "razorpay", eventId } },
-        data: {
-          status: "FAILED",
-          errorMessage: "no local subscription",
-          processedAt: new Date(),
-        },
-      });
+      await finish("FAILED", "no local subscription");
       return { applied: false, reason: "no_local_subscription" };
     }
+    const sub = subscription;
 
     await db.$transaction(async (tx) => {
-      const nextStatus = mapRazorpayStatus(event.event, subEntity.status);
-      const now = new Date();
-      const start = subEntity.current_start
-        ? new Date(subEntity.current_start * 1000)
-        : now;
-      const end = subEntity.current_end
-        ? new Date(subEntity.current_end * 1000)
-        : null;
-      const nextBilling = subEntity.charge_at
-        ? new Date(subEntity.charge_at * 1000)
-        : end;
+      const nextStatus = webhookStatus(event.event);
+      const start = toDate(subEntity?.current_start);
+      const end = toDate(subEntity?.current_end);
+      const nextBilling = toDate(subEntity?.charge_at) ?? end;
 
-      await tx.subscription.update({
-        where: { id: subscription.id },
-        data: {
-          status: nextStatus,
-          startDate: start,
-          endDate: end,
-          nextBillingDate: nextBilling,
-        },
-      });
+      if (nextStatus || start || end || nextBilling) {
+        await tx.subscription.update({
+          where: { id: sub.id },
+          data: {
+            ...(nextStatus ? { status: nextStatus } : {}),
+            ...(start ? { startDate: start } : {}),
+            ...(end ? { endDate: end } : {}),
+            ...(nextBilling ? { nextBillingDate: nextBilling } : {}),
+          },
+        });
+      }
 
-      if (payEntity) {
-        const existingPayment = payEntity.id
-          ? await tx.payment.findUnique({
-              where: { razorpayPaymentId: payEntity.id },
-            })
-          : null;
+      if (payEntity?.id && typeof payEntity.amount === "number") {
+        const status =
+          payEntity.status === "captured"
+            ? "CAPTURED"
+            : payEntity.status === "failed" || event.event === "payment.failed"
+              ? "FAILED"
+              : payEntity.status === "refunded"
+                ? "REFUNDED"
+                : "PENDING";
+        const created = toDate(payEntity.created_at) ?? new Date();
+        // `fee` from Razorpay already includes GST (`tax`); stored as the gateway fee in paise.
+        const gatewayFee = typeof payEntity.fee === "number" ? payEntity.fee : 0;
+        const existingPayment = await tx.payment.findUnique({ where: { razorpayPaymentId: payEntity.id } });
         if (!existingPayment) {
           await tx.payment.create({
             data: {
-              userId: subscription.userId,
-              subscriptionId: subscription.id,
+              userId: sub.userId,
+              subscriptionId: sub.id,
               razorpayPaymentId: payEntity.id,
               amount: payEntity.amount,
-              currency: payEntity.currency,
-              status: payEntity.status === "captured" ? "CAPTURED" : "PENDING",
-              gatewayFee: payEntity.fee ?? 0,
-              paidAt: payEntity.status === "captured" ? now : null,
+              currency: payEntity.currency ?? sub.currency,
+              status,
+              gatewayFee,
+              paidAt: status === "CAPTURED" ? created : null,
+            },
+          });
+        } else if (existingPayment.status !== status && existingPayment.status !== "REFUNDED") {
+          await tx.payment.update({
+            where: { id: existingPayment.id },
+            data: {
+              status,
+              ...(gatewayFee ? { gatewayFee } : {}),
+              ...(status === "CAPTURED" ? { paidAt: existingPayment.paidAt ?? created } : {}),
             },
           });
         }
       }
 
       await tx.webhookEvent.update({
-        where: { provider_eventId: { provider: "razorpay", eventId } },
+        where,
         data: { status: "PROCESSED", processedAt: new Date() },
       });
     });
@@ -217,37 +439,12 @@ export async function applyRazorpayEvent(
     return { applied: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await db.webhookEvent.update({
-      where: { provider_eventId: { provider: "razorpay", eventId } },
-      data: { status: "FAILED", errorMessage: msg, processedAt: new Date() },
-    });
+    await finish("FAILED", msg);
     return { applied: false, reason: msg };
-  }
-}
-
-function mapRazorpayStatus(
-  event: string,
-  providerStatus: string
-): string {
-  switch (event) {
-    case "subscription.activated":
-    case "subscription.charged":
-      return "ACTIVE";
-    case "subscription.halted":
-      return "HALTED";
-    case "subscription.cancelled":
-      return "CANCELLED";
-    case "subscription.expired":
-      return "EXPIRED";
-    case "payment.failed":
-      return "FAILED";
-    default:
-      return providerStatus.toUpperCase();
   }
 }
 
 export const plan = {
   amount: RAZORPAY_PLAN_AMOUNT,
   currency: RAZORPAY_PLAN_CURRENCY,
-  id: RAZORPAY_PLAN_ID,
 };

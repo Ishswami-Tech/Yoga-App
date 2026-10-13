@@ -1,16 +1,15 @@
 "use client";
+import { usePlan } from "@/hooks/use-plan";
 import { useEffect, useState } from "react";
+import { useRazorpayCheckout } from "@/hooks/use-razorpay-checkout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApp } from "@/lib/store";
 import { apiGet, apiPost, ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import {
-  IndianRupee,
   Check,
-  Sparkles,
+  AlertTriangle,
   ShieldCheck,
   Loader2,
   Lock,
@@ -29,6 +28,7 @@ import {
   ErrorCard,
 } from "./shared";
 import { prettyDate, formatINR } from "./format";
+import { SunFan, Mandala } from "../art/sunrise";
 
 type SubResp = {
   state: "NONE" | "PENDING" | "ACTIVE" | "EXPIRED" | "HALTED" | "CANCELLED";
@@ -44,26 +44,6 @@ type SubResp = {
   } | null;
 };
 
-type CreateResp = {
-  razorpaySubscriptionId: string;
-  razorpayPlanId: string;
-  amount: number;
-  currency: string;
-  shortUrl?: string;
-  status: string;
-};
-
-type SimulateResp = {
-  ok: boolean;
-  razorpaySubscriptionId: string;
-  razorpayPaymentId: string;
-  razorpaySignature: string;
-  webhookEventId: string;
-};
-
-type Step = "idle" | "checkout" | "processing" | "success";
-
-const PRICE_PAISE = 50000; // ₹500
 const features = [
   "Daily live classes on Google Meet",
   "Fresh Meet link every class day",
@@ -72,79 +52,53 @@ const features = [
 ];
 
 export function MembershipView() {
+  const plan = usePlan();
   const { setView } = useApp();
   const qc = useQueryClient();
-  const [step, setStep] = useState<Step>("idle");
-  const [progress, setProgress] = useState(0);
-  const [createData, setCreateData] = useState<CreateResp | null>(null);
+  // ?paymentStatus=SUCCESS|FAILED|CANCELLED is set when the student returns from the payment bridge.
+  const [returnStatus] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("paymentStatus")
+  );
+  const meQ = useQuery<{ user: { name?: string; email?: string; phone?: string | null } | null }>({
+    queryKey: ["me"],
+    queryFn: () => apiGet("/api/auth/me"),
+    retry: false,
+  });
+  const checkout = useRazorpayCheckout({
+    user: meQ.data?.user,
+    description: `Monthly membership, ${plan.display}/month`,
+  });
+  const { phase } = checkout;
+  const busy = phase === "starting" || phase === "checkout";
+
+  // Returning from the (legacy) payment bridge with SUCCESS: keep confirming until ACTIVE.
+  useEffect(() => {
+    if (returnStatus === "SUCCESS") void checkout.pollUntilActive();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const subQ = useQuery<SubResp>({
     queryKey: ["subscription"],
     queryFn: () => apiGet<SubResp>("/api/subscription"),
     retry: false,
-    refetchInterval: step === "processing" ? 800 : false,
+    refetchInterval: phase === "processing" ? 3000 : false,
   });
 
   const state = subQ.data?.state ?? "NONE";
 
-  // Create subscription.
-  const createMut = useMutation({
-    mutationFn: () => apiPost<CreateResp>("/api/subscriptions/create", {}),
-    onSuccess: (d) => {
-      setCreateData(d);
-      setStep("checkout");
-    },
-    onError: (e: ApiError | Error) => {
-      toast.error((e as ApiError)?.message ?? "Failed to start checkout");
-      setStep("idle");
-    },
-  });
-
-  // Simulate customer completing Razorpay checkout; the server then fires
-  // the verified webhook that activates the subscription.
-  const payMut = useMutation({
-    mutationFn: () =>
-      apiPost<SimulateResp>("/api/subscriptions/simulate", {
-        razorpaySubscriptionId: createData?.razorpaySubscriptionId,
-      }),
-    onSuccess: () => {
-      setStep("processing");
-      setProgress(0);
-      toast.info("Waiting for the verified Razorpay webhook…");
-    },
-    onError: (e: ApiError | Error) => {
-      toast.error((e as ApiError)?.message ?? "Payment failed");
-      setStep("checkout");
-    },
-  });
-
-  // While processing, poll /api/subscription; bail out when ACTIVE.
+  // The status is only a hint; membership turns ACTIVE once the server has verified the payment
+  // (the processing step polls for that).
   useEffect(() => {
-    if (step !== "processing") return;
-    let done = false;
-    const t = setInterval(async () => {
-      setProgress((p) => Math.min(p + 8, 95));
-      try {
-        const m = await apiGet<SubResp>("/api/subscription");
-        if (m.state === "ACTIVE" && !done) {
-          done = true;
-          clearInterval(t);
-          setProgress(100);
-          setTimeout(() => {
-            setStep("success");
-            toast.success("Membership active! Welcome to the mat 🧘");
-            qc.invalidateQueries({ queryKey: ["subscription"] });
-            qc.invalidateQueries({ queryKey: ["me"] });
-            qc.invalidateQueries({ queryKey: ["classes", "today"] });
-            qc.invalidateQueries({ queryKey: ["classes", "upcoming", 7] });
-          }, 400);
-        }
-      } catch {
-        // ignore transient errors
-      }
-    }, 600);
-    return () => clearInterval(t);
-  }, [step, qc]);
+    if (!returnStatus) return;
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.hash}`);
+    if (returnStatus === "SUCCESS") {
+      toast.info("Confirming your payment…");
+    } else if (returnStatus === "CANCELLED") {
+      toast.info("Payment cancelled. You have not been charged.");
+    } else {
+      toast.error("We could not confirm your payment. If money was deducted it will reflect shortly.");
+    }
+  }, [returnStatus]);
 
   if (subQ.isLoading) return <MembershipSkeleton />;
 
@@ -152,9 +106,12 @@ export function MembershipView() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Membership</h1>
+          <div className="text-[13px] font-extrabold uppercase tracking-wider text-muted-foreground">
+            Your membership
+          </div>
+          <h1 className="font-display text-4xl font-semibold leading-tight">Plan</h1>
           <p className="text-sm text-muted-foreground">
-            ₹500 / month · recurring · Razorpay
+            {plan.display} / month · recurring · Razorpay
           </p>
         </div>
         <MembershipStateBadge state={state} />
@@ -167,16 +124,16 @@ export function MembershipView() {
 
       {/* PENDING */}
       {state === "PENDING" && (
-        <Card className="border-amber-500/40">
+        <Card className="rounded-3xl bg-marigold/15 border-marigold/50 shadow-soft">
           <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="h-11 w-11 rounded-full bg-amber-500/15 grid place-items-center shrink-0">
-              <Loader2 className="h-5 w-5 text-amber-600 animate-spin" />
+            <div className="h-11 w-11 rounded-full bg-marigold/40 grid place-items-center shrink-0">
+              <Loader2 className="h-5 w-5 text-foreground animate-spin" />
             </div>
             <div className="flex-1">
-              <p className="font-medium">Verifying your payment…</p>
+              <p className="font-display text-lg font-semibold">Verifying your payment…</p>
               <p className="text-sm text-muted-foreground">
-                We never grant membership from the browser alone. We&apos;re
-                waiting for the verified Razorpay webhook to land.
+                Your membership turns on as soon as Razorpay confirms the payment.
+                This usually takes a few seconds.
               </p>
             </div>
             <Button
@@ -193,13 +150,13 @@ export function MembershipView() {
       {(state === "EXPIRED" ||
         state === "HALTED" ||
         state === "CANCELLED") && (
-        <Card className="border-rose-500/40 bg-rose-500/5">
+        <Card className="rounded-3xl border-primary/40 bg-primary/5 shadow-soft">
           <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="h-11 w-11 rounded-full bg-rose-500/15 grid place-items-center shrink-0">
-              <XCircle className="h-5 w-5 text-rose-600" />
+            <div className="h-11 w-11 rounded-full bg-primary/15 grid place-items-center shrink-0">
+              <XCircle className="h-5 w-5 text-primary" />
             </div>
             <div className="flex-1">
-              <p className="font-medium">
+              <p className="font-display text-lg font-semibold">
                 {state === "EXPIRED"
                   ? "Your membership expired"
                   : state === "HALTED"
@@ -217,34 +174,56 @@ export function MembershipView() {
       {/* Pricing / subscribe flow when no active membership */}
       {state !== "ACTIVE" && (
         <>
-          {step === "idle" && (
-            <PricingCard
-              onSubscribe={() => createMut.mutate()}
-              loading={createMut.isPending}
-              ctaLabel={
-                state === "PENDING"
-                  ? "Subscribe ₹500/month"
-                  : state === "EXPIRED" || state === "HALTED"
-                  ? "Renew ₹500/month"
-                  : state === "CANCELLED"
-                  ? "Resubscribe ₹500/month"
-                  : "Subscribe ₹500/month"
-              }
-            />
+          {(phase === "idle" || phase === "starting" || phase === "checkout" || phase === "cancelled") && (
+            <div className="space-y-3">
+              {phase === "cancelled" && (
+                <p role="status" className="rounded-2xl bg-muted/60 p-3 text-sm font-bold">
+                  Payment window closed. You have not been charged.
+                </p>
+              )}
+              <PricingCard
+                onSubscribe={() => void checkout.start()}
+                loading={busy}
+                ctaLabel={
+                  state === "EXPIRED" || state === "HALTED"
+                    ? `Renew ${plan.display}/month`
+                    : state === "CANCELLED"
+                    ? `Resubscribe ${plan.display}/month`
+                    : `Subscribe ${plan.display}/month`
+                }
+              />
+            </div>
           )}
-          {step === "checkout" && createData && (
-            <CheckoutCard
-              data={createData}
-              onPay={() => payMut.mutate()}
-              loading={payMut.isPending}
-              onBack={() => setStep("idle")}
-            />
+          {phase === "processing" && (
+            <ProcessingCard slow={checkout.slow} onRetry={() => void checkout.pollUntilActive()} />
           )}
-          {step === "processing" && (
-            <ProcessingCard progress={progress} />
+          {phase === "success" && <SuccessCard onGo={() => setView("student-dashboard")} />}
+          {phase === "failed" && (
+            <Card className="rounded-3xl border-2 border-destructive shadow-soft">
+              <CardContent className="p-6 text-center space-y-3">
+                <h2 className="font-display text-2xl font-semibold">Payment not completed</h2>
+                <p role="alert" className="text-sm text-muted-foreground">
+                  {checkout.message ?? "Something went wrong with the payment."} You can try again.
+                </p>
+                <Button variant="outline" onClick={() => checkout.reset()}>
+                  Try again
+                </Button>
+              </CardContent>
+            </Card>
           )}
-          {step === "success" && (
-            <SuccessCard onGo={() => setView("student-dashboard")} />
+          {phase === "unavailable" && (
+            <Card className="rounded-3xl border-2 border-dashed shadow-soft">
+              <CardContent className="p-6 text-center space-y-3">
+                <AlertTriangle className="h-7 w-7 mx-auto text-primary" />
+                <h2 className="font-display text-2xl font-semibold">Payments are temporarily unavailable</h2>
+                <p role="alert" className="text-sm text-muted-foreground">
+                  We cannot take payments right now. You have not been charged. Please try again later.
+                </p>
+                <Button variant="outline" onClick={() => checkout.reset()}>
+                  Back
+                </Button>
+              </CardContent>
+            </Card>
           )}
         </>
       )}
@@ -260,63 +239,61 @@ function ActiveCard({
 }: {
   sub: NonNullable<SubResp["subscription"]>;
 }) {
+  const tile = "rounded-2xl bg-card px-3.5 py-2.5";
+  const dt = "text-xs font-extrabold uppercase tracking-wider text-muted-foreground";
+  const dd = "mt-0.5 text-[15px] font-extrabold";
   return (
     <div className="space-y-4">
-      <Card className="relative overflow-hidden border-emerald-500/40">
-        <div className="absolute inset-x-0 top-0 h-1.5 bg-emerald-500" />
-        <CardContent className="p-6 space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Active subscription
-              </p>
-              <h2 className="text-xl font-bold">Monthly Membership</h2>
-              <p className="text-sm text-muted-foreground">
-                {formatINR(sub.amount)} / month · {sub.currency}
-              </p>
-            </div>
-            <div className="text-right">
-              <Badge
-                variant="outline"
-                className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-              >
-                {sub.status}
-              </Badge>
-              <p className="text-[11px] text-muted-foreground mt-1 font-mono break-all max-w-[180px]">
-                {sub.razorpaySubscriptionId}
-              </p>
-            </div>
+      <section className="relative overflow-hidden rounded-3xl bg-sunrise-sky p-5 text-[#3B1F1A] shadow-lift">
+        <SunFan
+          size={240}
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-20 -top-20"
+        />
+        <div className="relative">
+          <div className="text-[12.5px] font-extrabold uppercase tracking-wider">
+            Monthly Membership
           </div>
-          <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-border/60">
-            <KV label="Start date">{prettyDate(sub.startDate)}</KV>
-            <KV label="Next billing">{prettyDate(sub.nextBillingDate)}</KV>
-            <KV label="End date">{prettyDate(sub.endDate)}</KV>
-            <KV label="Amount">{formatINR(sub.amount)}</KV>
+          <div className="mt-2 flex items-start justify-between gap-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-card px-3 py-1 text-[12.5px] font-extrabold uppercase tracking-wide">
+              <span aria-hidden="true" className="size-2 rounded-full bg-emerald-500" />
+              {sub.status}
+            </span>
           </div>
-        </CardContent>
-      </Card>
+          <div className="mt-2">
+            <span className="font-display text-6xl font-bold leading-none tracking-tight">
+              {formatINR(sub.amount)}
+            </span>
+            <span className="text-base font-extrabold"> / month</span>
+          </div>
+          <p className="mt-1 text-[11px] font-mono font-semibold break-all opacity-80">
+            {sub.razorpaySubscriptionId}
+          </p>
+          <dl className="mt-3.5 grid grid-cols-2 gap-2.5">
+            <div className={tile}>
+              <dt className={dt}>Next billing</dt>
+              <dd className={`${dd} text-foreground`}>{prettyDate(sub.nextBillingDate)}</dd>
+            </div>
+            <div className={tile}>
+              <dt className={dt}>Amount</dt>
+              <dd className={`${dd} text-foreground`}>{formatINR(sub.amount)}</dd>
+            </div>
+            <div className={tile}>
+              <dt className={dt}>Start date</dt>
+              <dd className={`${dd} text-foreground`}>{prettyDate(sub.startDate)}</dd>
+            </div>
+            <div className={tile}>
+              <dt className={dt}>End date</dt>
+              <dd className={`${dd} text-foreground`}>{prettyDate(sub.endDate)}</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
 
       {/* Pause membership self-service */}
       <PauseResumeCard />
 
-      <Card className="border-dashed">
-        <CardContent className="p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="h-10 w-10 rounded-full bg-muted grid place-items-center shrink-0">
-            <CreditCard className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <div className="flex-1">
-            <p className="font-medium">Need to cancel?</p>
-            <p className="text-sm text-muted-foreground">
-              Subscriptions are managed by Razorpay. Cancel anytime from your
-              Razorpay portal — access continues until the end of the current
-              billing cycle.
-            </p>
-          </div>
-          <Button variant="outline" disabled>
-            Manage via Razorpay
-          </Button>
-        </CardContent>
-      </Card>
+      <CancelCard />
     </div>
   );
 }
@@ -332,32 +309,32 @@ function PricingCard({
   ctaLabel?: string;
   readonly?: boolean;
 }) {
+  const plan = usePlan();
   return (
-    <Card className="relative overflow-hidden border-primary/40 shadow-sm">
-      <div className="absolute inset-x-0 top-0 h-1.5 bg-brand-gradient" />
-      <CardContent className="p-6 md:p-8 space-y-6">
+    <Card className="relative overflow-hidden rounded-3xl border-0 shadow-soft">
+      <div className="absolute inset-x-0 top-0 h-2 bg-sunrise-sky" />
+      <Mandala size={150} className="pointer-events-none absolute -right-10 -top-10 opacity-60" />
+      <CardContent className="relative p-6 md:p-8 space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">
+            <p className="text-[13px] font-extrabold uppercase tracking-wider text-muted-foreground mb-1">
               Monthly Membership
             </p>
             <div className="flex items-baseline gap-1">
-              <IndianRupee className="h-6 w-6 text-primary" />
-              <span className="text-4xl font-bold">500</span>
-              <span className="text-muted-foreground text-sm">/ month</span>
+              <span className="font-display text-5xl font-bold leading-none">₹{plan.rupees}</span>
+              <span className="text-muted-foreground text-sm font-bold">/ month</span>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Billed automatically via Razorpay Subscriptions
+              Billed monthly via Razorpay autopay. Cancel anytime.
             </p>
-          </div>
-          <div className="h-10 w-10 rounded-xl bg-brand-gradient/10 grid place-items-center shrink-0">
-            <Sparkles className="h-5 w-5 text-primary" />
           </div>
         </div>
         <ul className="space-y-2.5 text-sm">
           {features.map((f) => (
-            <li key={f} className="flex items-start gap-2">
-              <Check className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+            <li key={f} className="flex items-start gap-2.5 font-semibold">
+              <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-success-soft text-success">
+                <Check className="h-3 w-3" strokeWidth={3.4} />
+              </span>
               <span>{f}</span>
             </li>
           ))}
@@ -365,7 +342,7 @@ function PricingCard({
         {!readonly && onSubscribe && (
           <Button
             size="lg"
-            className="w-full bg-brand-gradient text-primary-foreground"
+            className="w-full min-h-14 text-base"
             disabled={loading}
             onClick={onSubscribe}
           >
@@ -374,138 +351,45 @@ function PricingCard({
                 <Loader2 className="h-4 w-4 animate-spin" /> Preparing checkout…
               </>
             ) : (
-              ctaLabel ?? "Subscribe ₹500/month"
+              ctaLabel ?? `Subscribe ${plan.display}/month`
             )}
           </Button>
         )}
         <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-          <ShieldCheck className="h-4 w-4 text-emerald-600" />
-          Server-side signature verification · idempotent webhooks
+          <ShieldCheck className="h-4 w-4 text-success" />
+          Secure payment by Razorpay
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function CheckoutCard({
-  data,
-  onPay,
-  loading,
-  onBack,
-}: {
-  data: CreateResp;
-  onPay: () => void;
-  loading: boolean;
-  onBack: () => void;
-}) {
+function ProcessingCard({ slow, onRetry }: { slow: boolean; onRetry: () => void }) {
   return (
-    <Card>
-      <CardContent className="p-6 space-y-5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-lg bg-primary/10 grid place-items-center">
-              <Sparkles className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Razorpay Checkout</p>
-              <p className="font-semibold">Pay {formatINR(PRICE_PAISE)}</p>
-            </div>
-          </div>
-          <div className="text-right text-xs">
-            <p className="text-muted-foreground">Subscription ID</p>
-            <p className="font-mono break-all max-w-[180px]">
-              {data.razorpaySubscriptionId}
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Plan</span>
-            <span>Monthly Membership</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Billing</span>
-            <span>Recurring · every 30 days</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Amount</span>
-            <span>{formatINR(PRICE_PAISE)}</span>
-          </div>
-          <div className="flex justify-between text-sm font-semibold border-t border-border pt-3">
-            <span>Total today</span>
-            <span className="flex items-center">
-              <IndianRupee className="h-4 w-4" /> 500.00
-            </span>
-          </div>
-        </div>
-
-        {/* Mock payment method selector */}
-        <div className="grid grid-cols-3 gap-2">
-          {["UPI", "Cards", "Netbanking"].map((m, i) => (
-            <button
-              key={m}
-              className={`rounded-lg border p-3 text-center text-sm transition ${
-                i === 0
-                  ? "border-primary bg-primary/5"
-                  : "border-border bg-card hover:bg-secondary/40"
-              }`}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
-
-        <Button
-          className="w-full bg-brand-gradient text-primary-foreground"
-          disabled={loading}
-          onClick={onPay}
-        >
-          {loading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" /> Authorising…
-            </>
-          ) : (
-            <>
-              <Lock className="h-4 w-4" /> Pay {formatINR(PRICE_PAISE)} &amp;
-              subscribe
-            </>
-          )}
-        </Button>
-        <div className="flex items-center justify-between text-xs">
-          <button
-            className="text-muted-foreground underline underline-offset-4"
-            onClick={onBack}
-          >
-            Cancel
-          </button>
-          <p className="text-muted-foreground">
-            By paying you authorise Razorpay to charge ₹500 every 30 days until
-            you cancel.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ProcessingCard({ progress }: { progress: number }) {
-  return (
-    <Card>
+    <Card className="rounded-3xl shadow-soft">
       <CardContent className="p-8 text-center space-y-4">
-        <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
-        <h2 className="font-semibold text-lg">
-          Waiting for verified webhook…
+        <div role="status" aria-label="Confirming payment" className="relative mx-auto size-28">
+          <SunFan size={112} className="absolute inset-0 opacity-80" />
+          <Loader2 className="absolute inset-0 m-auto h-20 w-20 animate-spin text-primary" strokeWidth={1.5} />
+        </div>
+        <h2 className="font-display text-2xl font-semibold">
+          Confirming your <span className="text-primary">payment.</span>
         </h2>
         <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-          Your checkout succeeded but we never grant membership from the
-          browser. We&apos;re waiting for the verified Razorpay webhook to mark
-          your subscription ACTIVE.
+          We are confirming your payment with Razorpay and activating your membership.
+          Please do not close this screen.
         </p>
-        <Progress value={progress} className="max-w-sm mx-auto" />
-        <p className="text-xs text-muted-foreground">
-          {progress}% · signature verified ✓ · webhook received ✓
-        </p>
+        {slow && (
+          <div className="max-w-sm mx-auto space-y-3">
+            <p role="status" className="text-sm font-bold">
+              This is taking longer than usual. If money was deducted your membership will
+              activate shortly; you do not need to pay again.
+            </p>
+            <Button variant="outline" onClick={onRetry}>
+              Check again
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -513,32 +397,35 @@ function ProcessingCard({ progress }: { progress: number }) {
 
 function SuccessCard({ onGo }: { onGo: () => void }) {
   return (
-    <Card className="border-emerald-500/40">
+    <Card className="rounded-3xl shadow-soft">
       <CardContent className="p-8 text-center space-y-4">
-        <div className="h-14 w-14 rounded-full bg-emerald-500 mx-auto grid place-items-center">
-          <Check className="h-7 w-7 text-white" />
+        <div className="h-14 w-14 rounded-full bg-[#8FAF8A] text-[#1F3A24] mx-auto grid place-items-center">
+          <Check className="h-7 w-7" strokeWidth={3.4} />
         </div>
-        <h2 className="text-2xl font-bold">Membership active! 🧘</h2>
+        <h2 className="font-display text-3xl font-semibold">
+          You are in. <span className="text-primary">Welcome.</span>
+        </h2>
         <p className="text-muted-foreground">
           You&apos;re all set. You&apos;ll receive a WhatsApp reminder 15
           minutes before each class.
         </p>
         <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto pt-4">
-          <div className="rounded-lg bg-card border border-border p-3">
+          <div className="rounded-2xl bg-muted/60 p-3">
             <Video className="h-5 w-5 mx-auto text-primary mb-1" />
-            <p className="text-[11px] text-muted-foreground">Daily Meet</p>
+            <p className="text-xs font-bold text-muted-foreground">Daily Meet</p>
           </div>
-          <div className="rounded-lg bg-card border border-border p-3">
+          <div className="rounded-2xl bg-muted/60 p-3">
             <MessageCircle className="h-5 w-5 mx-auto text-primary mb-1" />
-            <p className="text-[11px] text-muted-foreground">WhatsApp</p>
+            <p className="text-xs font-bold text-muted-foreground">WhatsApp</p>
           </div>
-          <div className="rounded-lg bg-card border border-border p-3">
+          <div className="rounded-2xl bg-muted/60 p-3">
             <ShieldCheck className="h-5 w-5 mx-auto text-primary mb-1" />
-            <p className="text-[11px] text-muted-foreground">Secured</p>
+            <p className="text-xs font-bold text-muted-foreground">Secured</p>
           </div>
         </div>
         <Button
-          className="bg-brand-gradient text-primary-foreground"
+          size="lg"
+          className="w-full min-h-14 text-base"
           onClick={onGo}
         >
           Go to dashboard <ArrowRight className="h-4 w-4" />
@@ -557,15 +444,13 @@ function MembershipSkeleton() {
           <div className="h-4 w-32 rounded-md bg-accent animate-pulse" />
         </div>
       </div>
-      <div className="h-48 w-full rounded-xl bg-accent animate-pulse" />
+      <div className="h-48 w-full rounded-3xl bg-accent animate-pulse" />
     </div>
   );
 }
 
 // Pause/Resume membership self-service card.
-// Uses the Razorpay adapter's halted/charged events through the verified-
-// webhook path. The student can pause (halts the subscription — no future
-// charges until resumed) and resume (re-activates via a charged event).
+// Calls the real Razorpay pause API through our server; billing stops until resumed.
 function PauseResumeCard() {
   const qc = useQueryClient();
   const [confirmPause, setConfirmPause] = useState(false);
@@ -596,13 +481,13 @@ function PauseResumeCard() {
   });
 
   return (
-    <Card className="border-amber-500/30 bg-amber-500/5">
+    <Card className="rounded-3xl shadow-soft">
       <CardContent className="p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="h-10 w-10 rounded-full bg-amber-500/15 grid place-items-center shrink-0">
-          <Pause className="h-5 w-5 text-amber-600" />
+        <div className="h-10 w-10 rounded-2xl bg-marigold/40 grid place-items-center shrink-0">
+          <Pause className="h-5 w-5 text-foreground" />
         </div>
         <div className="flex-1">
-          <p className="font-medium">Going on a break?</p>
+          <p className="font-extrabold">Going on a break?</p>
           <p className="text-sm text-muted-foreground">
             Pause your membership — no charges while paused. Your access
             continues until the end of the current billing cycle, then resumes
@@ -613,15 +498,14 @@ function PauseResumeCard() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              size="sm"
+              className="min-h-11"
               onClick={() => setConfirmPause(false)}
               disabled={pauseMut.isPending}
             >
               Keep active
             </Button>
             <Button
-              size="sm"
-              className="bg-amber-600 text-white hover:bg-amber-700"
+              className="min-h-11"
               disabled={pauseMut.isPending}
               onClick={() => pauseMut.mutate()}
             >
@@ -635,12 +519,59 @@ function PauseResumeCard() {
           </div>
         ) : (
           <Button
-            variant="outline"
-            size="sm"
-            className="text-amber-700 border-amber-600/40 hover:bg-amber-500/10"
+            size="lg"
+            className="min-h-12"
             onClick={() => setConfirmPause(true)}
           >
             <Pause className="h-4 w-4" /> Pause membership
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CancelCard() {
+  const qc = useQueryClient();
+  const [confirm, setConfirm] = useState(false);
+  const cancelMut = useMutation({
+    mutationFn: () => apiPost("/api/subscription/cancel", {}),
+    onSuccess: () => {
+      toast.success("Auto-renewal cancelled", {
+        description: "You keep access until the end of the period you have already paid for.",
+      });
+      setConfirm(false);
+      qc.invalidateQueries({ queryKey: ["subscription"] });
+      qc.invalidateQueries({ queryKey: ["me"] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Couldn't cancel the membership"),
+  });
+  return (
+    <Card className="rounded-3xl border-2 border-dashed shadow-none">
+      <CardContent className="p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="h-10 w-10 rounded-2xl bg-rose/50 grid place-items-center shrink-0">
+          <CreditCard className="h-5 w-5 text-foreground" />
+        </div>
+        <div className="flex-1">
+          <p className="font-extrabold">Need to cancel?</p>
+          <p className="text-sm text-muted-foreground">
+            Stop the monthly auto-debit any time. Your access continues until the end of the
+            current billing cycle.
+          </p>
+        </div>
+        {confirm ? (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="min-h-11" disabled={cancelMut.isPending} onClick={() => setConfirm(false)}>
+              Keep membership
+            </Button>
+            <Button className="min-h-11" disabled={cancelMut.isPending} onClick={() => cancelMut.mutate()}>
+              {cancelMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Confirm cancel
+            </Button>
+          </div>
+        ) : (
+          <Button variant="outline" className="border-primary text-primary min-h-12" onClick={() => setConfirm(true)}>
+            Cancel auto-renewal
           </Button>
         )}
       </CardContent>

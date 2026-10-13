@@ -1,14 +1,14 @@
 // Google Calendar / Google Meet adapter.
 //
-// In production this module uses the Google Calendar API with an OAuth2
-// refresh token stored encrypted on the server. Each actual class date gets
-// a NEW Calendar event with `conferenceData: { createRequest: { requestId } }`
-// so Google provisions a fresh Meet conference for that day. The returned
-// `hangoutLink` is the meetUrl stored on YogaClass.
+// With GOOGLE_CALENDAR_CLIENT_ID, GOOGLE_CALENDAR_CLIENT_SECRET and GOOGLE_CALENDAR_REFRESH_TOKEN set,
+// every class date gets its own Google Calendar event created through the Calendar API with
+// `conferenceData.createRequest`, so Google provisions a fresh Meet conference per day and returns the
+// `hangoutLink`, which is stored as YogaClass.meetUrl. GOOGLE_CALENDAR_ID selects the calendar
+// (default "primary"). The refresh token belongs to the account that hosts the classes (the instructor
+// or studio Google account); it is read from the environment and never stored in the database.
 //
-// In this sandbox we deterministically synthesise a unique Meet URL per
-// (scheduleId, date) pair using a short hash so the join flow can be
-// exercised without real Google credentials.
+// Without those variables Meet creation throws (the class is marked FAILED with a clear error
+// that admins can see); no placeholder link is ever generated.
 
 import { createHash } from "crypto";
 
@@ -27,41 +27,115 @@ export type CreatedMeet = {
   calendarLink: string;
 };
 
-const ALPHABET = "abcdefghijklmnopqrstuvwxyz";
+const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 
-function meetCode(seed: string): string {
-  // Generate a Google-Meet-style code: xxx-xxxx-xxx
-  const hash = createHash("sha256").update(seed).digest();
-  const pick = (offset: number, len: number) =>
-    Array.from({ length: len }, (_, i) =>
-      ALPHABET[(hash[(offset + i) % hash.length] || 0) % 26]
-    ).join("");
-  return `${pick(0, 3)}-${pick(4, 4)}-${pick(9, 3)}`;
+type Credentials = { clientId: string; clientSecret: string; refreshToken: string; calendarId: string };
+
+function liveCredentials(): Credentials | null {
+  const clientId = process.env.GOOGLE_CALENDAR_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET?.trim();
+  const refreshToken = process.env.GOOGLE_CALENDAR_REFRESH_TOKEN?.trim();
+  if (!clientId || !clientSecret || !refreshToken) return null;
+  return { clientId, clientSecret, refreshToken, calendarId: process.env.GOOGLE_CALENDAR_ID?.trim() || "primary" };
+}
+
+let cachedToken: { value: string; expiresAt: number } | null = null;
+
+async function accessToken(c: Credentials): Promise<string> {
+  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.value;
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: c.clientId,
+      client_secret: c.clientSecret,
+      refresh_token: c.refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+  const data = (await res.json().catch(() => null)) as { access_token?: string; expires_in?: number; error_description?: string } | null;
+  if (!res.ok || !data?.access_token) {
+    throw new Error(`Google token refresh failed: ${data?.error_description ?? res.status}`);
+  }
+  cachedToken = { value: data.access_token, expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000 };
+  return data.access_token;
+}
+
+type CalendarEvent = {
+  id?: string;
+  htmlLink?: string;
+  hangoutLink?: string;
+  conferenceData?: {
+    createRequest?: { status?: { statusCode?: string } };
+    entryPoints?: { entryPointType?: string; uri?: string }[];
+  };
+  error?: { message?: string };
+};
+
+function meetUrlOf(ev: CalendarEvent): string | null {
+  if (ev.hangoutLink) return ev.hangoutLink;
+  return ev.conferenceData?.entryPoints?.find((e) => e.entryPointType === "video")?.uri ?? null;
+}
+
+async function createLiveMeet(input: CreateMeetInput, c: Credentials): Promise<CreatedMeet> {
+  const token = await accessToken(c);
+  const calendar = encodeURIComponent(c.calendarId);
+  // requestId makes the call idempotent: retrying the same (schedule, date) reuses the same conference.
+  const requestId = createHash("sha256").update(`${input.scheduleId}:${input.date}`).digest("hex").slice(0, 32);
+  const res = await fetch(`${CALENDAR_API}/calendars/${calendar}/events?conferenceDataVersion=1&sendUpdates=none`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      summary: input.name,
+      start: { dateTime: `${input.date}T${input.startTime}:00`, timeZone: input.timezone },
+      end: { dateTime: `${input.date}T${input.endTime}:00`, timeZone: input.timezone },
+      conferenceData: { createRequest: { requestId, conferenceSolutionKey: { type: "hangoutsMeet" } } },
+    }),
+  });
+  let ev = (await res.json().catch(() => null)) as CalendarEvent | null;
+  if (!res.ok || !ev?.id) {
+    throw new Error(`Google Calendar event creation failed: ${ev?.error?.message ?? res.status}`);
+  }
+  const eventId = ev.id;
+  // Conference creation can be asynchronous: poll the event briefly until the Meet link exists.
+  for (let attempt = 0; attempt < 5 && !meetUrlOf(ev); attempt++) {
+    await new Promise((r) => setTimeout(r, 800));
+    const again = await fetch(`${CALENDAR_API}/calendars/${calendar}/events/${encodeURIComponent(eventId)}?conferenceDataVersion=1`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const next = (await again.json().catch(() => null)) as CalendarEvent | null;
+    if (again.ok && next) ev = next;
+  }
+  const meetUrl = meetUrlOf(ev);
+  if (!meetUrl) throw new Error("Google did not return a Meet link for the event");
+  return { googleEventId: eventId, meetUrl, calendarLink: ev.htmlLink ?? "" };
 }
 
 export const googleMeet = {
-  isMock: true,
-
-  async createMeetForClass(input: CreateMeetInput): Promise<CreatedMeet> {
-    // Stable seed -> same class always yields the same Meet URL so retries
-    // are idempotent.
-    const seed = `${input.scheduleId}:${input.date}`;
-    const code = meetCode(seed);
-    const meetUrl = `https://meet.google.com/${code}`;
-    const googleEventId = `evt_${createHash("sha256")
-      .update(seed)
-      .digest("hex")
-      .slice(0, 16)}`;
-    const calendarLink = `https://calendar.google.com/calendar/event?eid=${googleEventId}`;
-    // Simulate occasional provider latency
-    await new Promise((r) => setTimeout(r, 50));
-    return { googleEventId, meetUrl, calendarLink };
+  get configured(): boolean {
+    return liveCredentials() !== null;
   },
 
-  // In the real adapter, this would delete/expire the calendar event so the
-  // Meet is no longer reachable. Here we just acknowledge the call.
+  async createMeetForClass(input: CreateMeetInput): Promise<CreatedMeet> {
+    const live = liveCredentials();
+    if (!live) {
+      throw new Error(
+        "Google Calendar is not configured (set GOOGLE_CALENDAR_CLIENT_ID, GOOGLE_CALENDAR_CLIENT_SECRET and GOOGLE_CALENDAR_REFRESH_TOKEN)"
+      );
+    }
+    return createLiveMeet(input, live);
+  },
+
+  // Deletes the calendar event so the Meet is no longer reachable.
   async cancelMeet(googleEventId: string): Promise<void> {
     if (!googleEventId) return;
-    // no-op in mock
+    const live = liveCredentials();
+    if (!live) return;
+    const token = await accessToken(live);
+    await fetch(`${CALENDAR_API}/calendars/${encodeURIComponent(live.calendarId)}/events/${encodeURIComponent(googleEventId)}?sendUpdates=none`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
   },
 };

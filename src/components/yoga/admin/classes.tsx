@@ -34,6 +34,7 @@ import {
   RotateCcw,
   CheckCircle2,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { prettyTime, prettyDate, shortDate } from "@/components/yoga/student/format";
@@ -124,13 +125,11 @@ export function ClassesView() {
           <>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => qc.invalidateQueries({ queryKey: ["admin", "classes"] })}
             >
               <RefreshCw className="h-4 w-4" /> Refresh
             </Button>
             <Button
-              size="sm"
               variant="outline"
               onClick={() => runJob.mutate("generate")}
               disabled={runJob.isPending && runJob.variables === "generate"}
@@ -143,7 +142,6 @@ export function ClassesView() {
               Generate now
             </Button>
             <Button
-              size="sm"
               onClick={() => runJob.mutate("remind")}
               disabled={runJob.isPending && runJob.variables === "remind"}
             >
@@ -162,7 +160,7 @@ export function ClassesView() {
       <Card>
         <CardContent className="p-3 md:p-4 flex flex-wrap items-center gap-2">
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger size="sm" className="w-44">
+            <SelectTrigger className="h-11 rounded-full font-semibold w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -174,7 +172,7 @@ export function ClassesView() {
             </SelectContent>
           </Select>
           <Select value={scheduleId} onValueChange={setScheduleId}>
-            <SelectTrigger size="sm" className="w-44">
+            <SelectTrigger className="h-11 rounded-full font-semibold w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -211,13 +209,13 @@ export function ClassesView() {
           title="No classes in the next 14 days"
           description="Run the worker to generate classes for the look-ahead window, or adjust your filters."
           action={
-            <Button size="sm" onClick={() => runJob.mutate("generate")}>
+            <Button onClick={() => runJob.mutate("generate")}>
               <Zap className="h-4 w-4" /> Generate now
             </Button>
           }
         />
       ) : (
-        <Card>
+        <Card className="overflow-hidden py-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -250,8 +248,8 @@ export function ClassesView() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <div className="flex flex-col items-center justify-center h-10 w-10 rounded-lg bg-secondary shrink-0">
-                            <span className="text-[10px] uppercase text-muted-foreground">
+                          <div className="flex flex-col items-center justify-center h-11 w-11 rounded-2xl bg-secondary shrink-0">
+                            <span className="text-[10px] font-extrabold uppercase text-muted-foreground">
                               {shortDate(c.date).split(" ")[0]}
                             </span>
                             <span className="text-sm font-semibold leading-none">
@@ -284,13 +282,16 @@ export function ClassesView() {
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         {c.meetUrl ? (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex min-h-7 items-center gap-1 rounded-full bg-success-soft px-3 text-xs font-extrabold text-success">
+                              <Sparkles className="h-3 w-3" /> Auto-created
+                            </span>
                             <a
                               href={c.meetUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center gap-1 text-primary text-xs hover:underline"
+                              className="inline-flex min-h-11 items-center gap-1 text-primary text-sm font-bold hover:underline"
                             >
                               <ExternalLink className="h-3 w-3" />
                               meet
@@ -310,14 +311,14 @@ export function ClassesView() {
                         {c.reminderSentAt ? (
                           <Badge
                             variant="outline"
-                            className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                            className="border-transparent bg-success-soft text-success"
                           >
                             <Bell className="h-3 w-3" /> Sent
                           </Badge>
                         ) : c.reminderAt ? (
                           <Badge
                             variant="outline"
-                            className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                            className="border-transparent bg-marigold/30 text-foreground"
                           >
                             Scheduled
                           </Badge>
@@ -355,17 +356,20 @@ export function ClassesView() {
                         <TableCell colSpan={8}>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-2 text-sm">
                             <div>
-                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                              <p className="text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
                                 Class ID
                               </p>
                               <MonoText>{c.id}</MonoText>
                             </div>
                             <div>
-                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                              <p className="text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
                                 Meet URL
                               </p>
                               {c.meetUrl ? (
-                                <div className="flex items-center gap-1">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="inline-flex min-h-7 items-center gap-1 rounded-full bg-success-soft px-3 text-xs font-extrabold text-success">
+                                    <Sparkles className="h-3 w-3" /> Auto-created
+                                  </span>
                                   <MonoText>
                                     {c.meetUrl.replace(/^https?:\/\//, "")}
                                   </MonoText>
@@ -378,20 +382,20 @@ export function ClassesView() {
                               )}
                             </div>
                             <div>
-                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                              <p className="text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
                                 Reminder scheduled for
                               </p>
                               <span className="text-sm">
                                 {istDateTime(c.reminderAt)}
                               </span>
                               {c.reminderSentAt && (
-                                <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
+                                <p className="text-[11px] text-success mt-0.5">
                                   Sent at {istDateTime(c.reminderSentAt)}
                                 </p>
                               )}
                             </div>
                             <div>
-                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                              <p className="text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
                                 Google event ID
                               </p>
                               <div className="flex items-center gap-1">
@@ -455,9 +459,8 @@ function ClassActions({
   if (cls.status === "COMPLETED") {
     return (
       <Button
-        size="sm"
         variant="outline"
-        className="text-amber-700 border-amber-600/40 hover:bg-amber-500/10"
+        className="text-foreground border-marigold hover:bg-marigold/20"
         disabled={reopenMut.isPending}
         onClick={(e) => {
           e.stopPropagation();
@@ -476,9 +479,8 @@ function ClassActions({
   if (cls.status === "READY" && cls.meetUrl) {
     return (
       <Button
-        size="sm"
         variant="outline"
-        className="text-emerald-700 border-emerald-600/40 hover:bg-emerald-500/10"
+        className="text-success border-success/40 hover:bg-success-soft"
         disabled={completeMut.isPending}
         onClick={(e) => {
           e.stopPropagation();

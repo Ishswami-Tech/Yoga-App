@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { run, notFound, fail } from "@/lib/api";
 import { istDateString, prettyTime } from "@/lib/services/scheduling";
 
+import { APP_NAME, SUPPORT_EMAIL, SUPPORT_PHONE } from "@/lib/brand";
 export const runtime = "nodejs";
 
 // Payment receipt — returns a self-contained, print-optimised HTML page
@@ -26,7 +27,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     });
     if (!payment) return notFound("Payment");
 
-    if (user.role === "STUDENT" && payment.userId !== user.id) {
+    if (user.role !== "ADMIN" && payment.userId !== user.id) {
       return fail("Forbidden", 403, { code: "FORBIDDEN" });
     }
 
@@ -48,6 +49,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   });
+}
+
+function esc(v: string): string {
+  return v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 }
 
 function fmt(paise: number): string {
@@ -93,7 +98,7 @@ function renderReceipt(opts: {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Prana Live Yoga — Receipt #${opts.receiptNo}</title>
+<title>${APP_NAME} — Receipt #${opts.receiptNo}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   @page { size: A4; margin: 14mm; }
@@ -175,10 +180,10 @@ function renderReceipt(opts: {
     <div class="receipt-head">
       <div class="brand">
         <div class="brand-mark">🧘</div>
-        <div class="brand-name">Prana Live Yoga</div>
+        <div class="brand-name">${APP_NAME}</div>
       </div>
       <div class="receipt-title">Payment Receipt</div>
-      <div class="receipt-sub">₹500/month recurring membership · Daily live yoga classes</div>
+      <div class="receipt-sub">Monthly membership (₹${amount}) · Daily live yoga classes</div>
       <div class="receipt-no">RECEIPT #${opts.receiptNo}</div>
     </div>
     <div class="receipt-body">
@@ -192,9 +197,9 @@ function renderReceipt(opts: {
       </div>
       <table>
         <tr><td>Receipt number</td><td>${opts.receiptNo}</td></tr>
-        <tr><td>Razorpay payment ID</td><td>${opts.paymentId}</td></tr>
-        <tr><td>Member name</td><td style="font-family: inherit; font-size: 14px;">${opts.studentName}</td></tr>
-        <tr><td>Member email</td><td style="font-family: inherit; font-size: 14px;">${opts.studentEmail}</td></tr>
+        <tr><td>Razorpay payment ID</td><td>${esc(opts.paymentId)}</td></tr>
+        <tr><td>Member name</td><td style="font-family: inherit; font-size: 14px;">${esc(opts.studentName)}</td></tr>
+        <tr><td>Member email</td><td style="font-family: inherit; font-size: 14px;">${esc(opts.studentEmail)}</td></tr>
         <tr><td>Payment date</td><td style="font-family: inherit; font-size: 14px;">${paidAtStr}</td></tr>
         <tr><td>Gateway fee</td><td>₹${fee}</td></tr>
         <tr><td>Amount</td><td>₹${amount}</td></tr>
@@ -202,11 +207,11 @@ function renderReceipt(opts: {
       </table>
     </div>
     <div class="receipt-foot">
-      <strong>Thank you for practising with Prana Live Yoga.</strong><br/>
+      <strong>Thank you for practising with ${APP_NAME}.</strong><br/>
       This receipt is issued electronically for the membership period covered by the payment above.
       Membership remains active until the end of the current billing cycle.
-      For questions, contact support@pranayoga.app.<br/><br/>
-      Generated on ${fmtDate(new Date())} · Receipt ID ${opts.receiptNo} · Payment ID ${opts.paymentId}
+      ${SUPPORT_EMAIL || SUPPORT_PHONE ? `For questions, contact ${[SUPPORT_EMAIL, SUPPORT_PHONE].filter(Boolean).join(" / ")}.` : ""}<br/><br/>
+      Generated on ${fmtDate(new Date())} · Receipt ID ${opts.receiptNo} · Payment ID ${esc(opts.paymentId)}
     </div>
   </div>
   <script>

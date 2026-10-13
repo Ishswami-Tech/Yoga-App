@@ -5,8 +5,10 @@
 // Run with: bun run prisma/seed.ts
 
 import { PrismaClient } from "@prisma/client";
-import { hashPassword } from "../src/lib/auth";
-import { RAZORPAY_PLAN_ID, RAZORPAY_PLAN_AMOUNT, RAZORPAY_PLAN_CURRENCY } from "../src/lib/providers/razorpay";
+
+// Placeholder plan id for local demo rows only; real plans are created through the Razorpay API.
+const SEED_PLAN_ID = "plan_local_seed";
+import { RAZORPAY_PLAN_AMOUNT, RAZORPAY_PLAN_CURRENCY } from "../src/lib/providers/razorpay";
 
 const db = new PrismaClient();
 
@@ -19,10 +21,14 @@ async function upsertSetting(key: string, value: string) {
 }
 
 async function main() {
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
+    console.error("Refusing to seed demo accounts in production. Use `bun run db:bootstrap` to create the first admin.");
+    process.exit(1);
+  }
   console.log("Seeding database...");
 
   // --- Settings ---
-  await upsertSetting("razorpayPlanId", RAZORPAY_PLAN_ID);
+  await upsertSetting("razorpayPlanId", SEED_PLAN_ID);
   await upsertSetting("razorpayPlanAmount", String(RAZORPAY_PLAN_AMOUNT));
   await upsertSetting("razorpayPlanCurrency", RAZORPAY_PLAN_CURRENCY);
   await upsertSetting("lookAheadDays", "3");
@@ -40,7 +46,6 @@ async function main() {
       status: "ACTIVE",
       phone: "+919000000001",
       whatsappNumber: "+919000000001",
-      passwordHash: hashPassword("password123"),
     },
   });
 
@@ -55,7 +60,6 @@ async function main() {
       status: "ACTIVE",
       phone: "+919000000002",
       whatsappNumber: "+919000000002",
-      passwordHash: hashPassword("password123"),
     },
   });
 
@@ -98,7 +102,6 @@ async function main() {
         status: "ACTIVE",
         phone: s.whatsapp,
         whatsappNumber: s.whatsapp,
-        passwordHash: hashPassword("password123"),
       },
     });
 
@@ -116,7 +119,7 @@ async function main() {
           data: {
             userId: u.id,
             razorpaySubscriptionId: subId,
-            razorpayPlanId: RAZORPAY_PLAN_ID,
+            razorpayPlanId: SEED_PLAN_ID,
             status: "ACTIVE",
             amount: RAZORPAY_PLAN_AMOUNT,
             currency: RAZORPAY_PLAN_CURRENCY,
@@ -152,7 +155,7 @@ async function main() {
           data: {
             userId: u.id,
             razorpaySubscriptionId: subId,
-            razorpayPlanId: RAZORPAY_PLAN_ID,
+            razorpayPlanId: SEED_PLAN_ID,
             status: "EXPIRED",
             amount: RAZORPAY_PLAN_AMOUNT,
             currency: RAZORPAY_PLAN_CURRENCY,
@@ -225,9 +228,9 @@ async function main() {
   }
 
   console.log("Seed complete.");
-  console.log("Demo logins (password: password123):");
-  console.log("  admin@yoga.demo      (ADMIN)");
-  console.log("  instructor@yoga.demo (INSTRUCTOR)");
+  console.log("Dev accounts (sign in with a WhatsApp OTP to the number shown):");
+  console.log("  admin@yoga.demo      (ADMIN, +919000000001)");
+  console.log("  instructor@yoga.demo (INSTRUCTOR, +919000000002)");
   console.log("  priya@student.demo   (STUDENT, active membership)");
   console.log("  ananya@student.demo  (STUDENT, no membership yet)");
   console.log("  kabir@student.demo   (STUDENT, expired membership)");

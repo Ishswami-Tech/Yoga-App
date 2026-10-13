@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getCurrentUser, requireAuth } from "@/lib/auth";
-import { getMembershipState } from "@/lib/services/subscriptions";
+import { getMembershipState, summarizeMembership } from "@/lib/services/subscriptions";
 import { run, unauthorized } from "@/lib/api";
 
 export const runtime = "nodejs";
@@ -10,21 +10,10 @@ export async function GET(_req: NextRequest) {
   return run(async () => {
     const user = await getCurrentUser();
     if (!user) return unauthorized();
-    const { state, subscription } = await getMembershipState(user.id);
+    const membership = await getMembershipState(user.id);
     return {
-      state,
-      subscription: subscription
-        ? {
-            id: subscription.id,
-            status: subscription.status,
-            amount: subscription.amount,
-            currency: subscription.currency,
-            startDate: subscription.startDate,
-            endDate: subscription.endDate,
-            nextBillingDate: subscription.nextBillingDate,
-            razorpaySubscriptionId: subscription.razorpaySubscriptionId,
-          }
-        : null,
+      state: membership.state,
+      subscription: summarizeMembership(membership),
     };
   });
 }

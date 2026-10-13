@@ -1,23 +1,9 @@
 import { db } from "@/lib/db";
 import { cookies } from "next/headers";
-import { randomBytes, createHash } from "crypto";
+import { randomBytes } from "crypto";
 
 export const SESSION_COOKIE = "yoga_session";
 export const SESSION_DAYS = 30;
-
-// Simple password hashing using PBKDF2-style via Node crypto.
-// Not high-security but suitable for this demo. In production use argon2/bcrypt.
-export function hashPassword(password: string): string {
-  const salt = "yoga_static_salt_v1";
-  const hash = createHash("sha256")
-    .update(salt + ":" + password)
-    .digest("hex");
-  return hash;
-}
-
-export function verifyPassword(password: string, hash: string): boolean {
-  return hashPassword(password) === hash;
-}
 
 export async function createSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString("hex");
@@ -86,7 +72,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   }
 
   // 2. Fall back to legacy session (for backward compat with existing
-  // sessions created by /api/auth/login, /api/auth/otp/verify, etc.)
+  // sessions created by /api/auth/otp/verify)
   const session = await getSession();
   if (!session) return null;
   const user = await db.user.findUnique({ where: { id: session.userId } });
@@ -109,6 +95,7 @@ export function setSessionCookie(token: string) {
     name: SESSION_COOKIE,
     value: token,
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
     path: "/",
     expires,
@@ -120,6 +107,7 @@ export function clearSessionCookie() {
     name: SESSION_COOKIE,
     value: "",
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
     path: "/",
     expires: new Date(0),

@@ -23,17 +23,18 @@ export async function GET() {
       take: 50,
     });
 
-    // Overall stats
-    const totalCount = feedbacks.length;
-    const avgRating =
-      totalCount > 0
-        ? Math.round((feedbacks.reduce((a, f) => a + f.rating, 0) / totalCount) * 10) / 10
-        : 0;
+    // Overall stats over ALL feedback (not just the 50 most recent rows)
+    const [agg, byStar] = await Promise.all([
+      db.classFeedback.aggregate({ _avg: { rating: true }, _count: { _all: true } }),
+      db.classFeedback.groupBy({ by: ["rating"], _count: { _all: true } }),
+    ]);
+    const totalCount = agg._count._all;
+    const avgRating = agg._avg.rating ? Math.round(agg._avg.rating * 10) / 10 : 0;
 
     // Rating distribution (1-5 stars)
     const distribution = [1, 2, 3, 4, 5].map((star) => ({
       star,
-      count: feedbacks.filter((f) => f.rating === star).length,
+      count: byStar.find((r) => r.rating === star)?._count._all ?? 0,
     }));
 
     // Recent feedback (last 10 with comments)

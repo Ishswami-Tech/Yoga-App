@@ -2,7 +2,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -15,8 +14,8 @@ import {
   CalendarDays,
   Inbox,
 } from "lucide-react";
-import { ErrorCard, EmptyState } from "./shared";
-import { todayIST, istDateTime } from "./shared";
+import { ErrorCard, EmptyState, StatusChip, Eyebrow } from "./shared";
+import { todayIST } from "./shared";
 import { prettyTime, prettyDate } from "@/components/yoga/student/format";
 import { useApp } from "@/lib/store";
 import { useState } from "react";
@@ -89,8 +88,9 @@ export function RosterView() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Today&apos;s roster</h1>
-        <p className="text-sm text-muted-foreground">
+        <Eyebrow>Teaching</Eyebrow>
+        <h1 className="font-display text-3xl md:text-4xl font-semibold leading-tight">Today&apos;s roster</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           {prettyDate(todayStr)} · IST · who&apos;s expected and who attended
         </p>
       </div>
@@ -100,53 +100,42 @@ export function RosterView() {
           icon={CalendarDays}
           title="No classes scheduled today"
           description="Today is a rest day or a holiday exception."
-          tone="calm"
         />
       ) : (
         <>
           {/* Class summary card */}
           {firstClass && (
-            <Card className="relative overflow-hidden border-border/60">
-              <div className="absolute inset-0 bg-brand-gradient opacity-95" />
-              <div className="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
-              <CardContent className="relative p-6 text-primary-foreground">
+            <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-secondary to-accent rounded-[2rem] py-0">
+              <CardContent className="relative p-6 md:p-7">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="space-y-2">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur px-3 py-1 text-xs">
+                    <Eyebrow className="inline-flex items-center gap-2">
                       <Video className="h-3.5 w-3.5" />
-                      {firstClass.scheduleName}
-                    </div>
-                    <h2 className="text-xl font-bold">
+                      Class
+                    </Eyebrow>
+                    <h2 className="font-display text-3xl font-semibold leading-tight">
                       {firstClass.scheduleName}
                     </h2>
-                    <div className="flex items-center gap-3 text-sm">
+                    <div className="flex items-center gap-3 text-sm font-bold flex-wrap">
                       <span className="inline-flex items-center gap-1.5">
                         <Clock className="h-4 w-4" />
                         {prettyTime(firstClass.startTime)} – {prettyTime(firstClass.endTime)}
                       </span>
                       {firstClass.meetUrl && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-xs">
-                          Meet ready
-                        </span>
+                        <StatusChip tone="sage">Meet ready</StatusChip>
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-2 shrink-0 flex-wrap">
                     {firstClass.meetUrl && (
                       <Button
-                        size="sm"
-                        className="bg-white text-emerald-700 hover:bg-white/90"
+                        variant="outline"
                         onClick={() => window.open(firstClass.meetUrl!, "_blank")}
                       >
                         <Play className="h-4 w-4" /> Open Meet
                       </Button>
                     )}
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="bg-white/15 text-primary-foreground hover:bg-white/25 border-0"
-                      onClick={() => setPickerClassId(firstClass.id)}
-                    >
+                    <Button onClick={() => setPickerClassId(firstClass.id)}>
                       <Users className="h-4 w-4" /> Record attendance
                     </Button>
                   </div>
@@ -174,13 +163,13 @@ export function RosterView() {
                 icon={<CheckCircle2 className="h-5 w-5" />}
                 value={rosterQ.data.attendedCount}
                 label="Attended"
-                tone="emerald"
+                tone="sage"
               />
               <SummaryCard
                 icon={<Clock className="h-5 w-5" />}
                 value={rosterQ.data.totalActive - rosterQ.data.attendedCount}
                 label="Not yet"
-                tone="amber"
+                tone="marigold"
               />
             </div>
           ) : null}
@@ -188,10 +177,10 @@ export function RosterView() {
           {/* Roster list */}
           {rosterQ.data && (
             <Card>
-              <CardContent className="p-0 divide-y divide-border/40">
+              <CardContent className="p-0 px-3 divide-y-2 divide-dotted divide-border">
                 {rosterQ.data.roster.length === 0 ? (
                   <div className="p-8 text-center">
-                    <Inbox className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
+                    <Inbox className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">
                       No active members yet.
                     </p>
@@ -200,14 +189,14 @@ export function RosterView() {
                   rosterQ.data.roster.map((entry) => (
                     <div
                       key={entry.userId}
-                      className="flex items-center gap-3 p-3 hover:bg-accent/20 transition"
+                      className="flex items-center gap-3 py-3 px-1 hover:bg-accent/30 transition rounded-xl"
                     >
-                      <Avatar className="h-9 w-9 shrink-0">
+                      <Avatar className="h-11 w-11 shrink-0">
                         <AvatarFallback
                           className={
                             entry.attended
-                              ? "bg-emerald-500/15 text-emerald-700 text-xs font-semibold"
-                              : "bg-muted text-muted-foreground text-xs font-semibold"
+                              ? "bg-emerald-400 text-ink font-display text-sm font-bold"
+                              : "bg-secondary text-secondary-foreground font-display text-sm font-bold"
                           }
                         >
                           {entry.studentName
@@ -219,7 +208,7 @@ export function RosterView() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">
+                        <p className="font-bold text-base truncate">
                           {entry.studentName}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
@@ -227,13 +216,13 @@ export function RosterView() {
                         </p>
                       </div>
                       {entry.attended ? (
-                        <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 gap-1 text-[10px]">
-                          <CheckCircle2 className="h-3 w-3" /> Present
-                        </Badge>
+                        <StatusChip tone="sage" icon={<CheckCircle2 />}>
+                          Present
+                        </StatusChip>
                       ) : (
-                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                          <Clock className="h-3 w-3" /> Expected
-                        </Badge>
+                        <StatusChip tone="neutral" icon={<Clock />}>
+                          Expected
+                        </StatusChip>
                       )}
                     </div>
                   ))
@@ -245,24 +234,23 @@ export function RosterView() {
           {/* Other classes today */}
           {todayClasses.length > 1 && (
             <div>
-              <h3 className="text-sm font-semibold mb-2">
+              <h3 className="font-display text-xl font-semibold mb-2">
                 Other classes today ({todayClasses.length - 1})
               </h3>
               <div className="space-y-2">
                 {todayClasses.slice(1).map((c) => (
-                  <Card key={c.id} className="border-border/60">
+                  <Card key={c.id} className="py-0">
                     <CardContent className="p-3 flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-lg bg-brand-gradient/10 grid place-items-center shrink-0">
+                      <div className="h-10 w-10 rounded-full bg-secondary grid place-items-center shrink-0">
                         <Video className="h-4 w-4 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{c.scheduleName}</p>
+                        <p className="font-bold truncate">{c.scheduleName}</p>
                         <p className="text-xs text-muted-foreground">
                           {prettyTime(c.startTime)} – {prettyTime(c.endTime)}
                         </p>
                       </div>
                       <Button
-                        size="sm"
                         variant="outline"
                         onClick={() => setPickerClassId(c.id)}
                       >
@@ -299,22 +287,22 @@ function SummaryCard({
   icon: React.ReactNode;
   value: number;
   label: string;
-  tone: "primary" | "emerald" | "amber";
+  tone: "primary" | "sage" | "marigold";
 }) {
   const toneClass =
-    tone === "emerald"
-      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-      : tone === "amber"
-      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-      : "bg-primary/10 text-primary";
+    tone === "sage"
+      ? "bg-emerald-400 text-ink"
+      : tone === "marigold"
+      ? "bg-marigold text-ink"
+      : "bg-rose text-ink";
   return (
-    <Card className="border-border/60">
+    <Card className="py-0">
       <CardContent className="p-4 space-y-1">
-        <div className={`h-9 w-9 rounded-lg grid place-items-center ${toneClass}`}>
+        <div className={`h-10 w-10 rounded-full grid place-items-center ${toneClass}`}>
           {icon}
         </div>
-        <p className="text-2xl font-bold tracking-tight">{value}</p>
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        <p className="font-display text-3xl font-semibold tracking-tight">{value}</p>
+        <p className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">
           {label}
         </p>
       </CardContent>

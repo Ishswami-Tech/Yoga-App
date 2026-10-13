@@ -17,6 +17,7 @@ import {
 import { useApp } from "@/lib/store";
 import { ErrorCard, EmptyState } from "./shared";
 import { prettyDate } from "./format";
+import { Mandala } from "../art/sunrise";
 
 type JournalDay = {
   date: string;
@@ -89,67 +90,71 @@ export function JournalView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Practice journal</h1>
+          <div className="text-[13px] font-extrabold uppercase tracking-wider text-muted-foreground">
+            Attendance
+          </div>
+          <h1 className="font-display text-4xl font-semibold leading-tight">Journal</h1>
           <p className="text-sm text-muted-foreground">
             Your last 90 days of practice · attendance heatmap
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setView("student-dashboard")}>
+        <Button variant="outline" className="min-h-11" onClick={() => setView("student-dashboard")}>
           <ArrowLeft className="h-4 w-4" /> Back to dashboard
         </Button>
       </div>
 
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-3">
-        <Card className="border-border/60">
+        <Card className="rounded-3xl shadow-soft">
           <CardContent className="p-4 space-y-1">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
               <CheckCircle2 className="h-3 w-3" /> Attended
             </div>
-            <p className="text-2xl font-bold">{stats.attendedCount}</p>
-            <p className="text-[10px] text-muted-foreground">classes in 90 days</p>
+            <p className="font-display text-3xl font-bold leading-none">{stats.attendedCount}</p>
+            <p className="text-xs font-semibold text-muted-foreground">classes in 90 days</p>
           </CardContent>
         </Card>
-        <Card className="border-border/60">
+        <Card className="rounded-3xl shadow-soft">
           <CardContent className="p-4 space-y-1">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
               <Calendar className="h-3 w-3" /> Scheduled
             </div>
-            <p className="text-2xl font-bold">{stats.classDaysCount}</p>
-            <p className="text-[10px] text-muted-foreground">class days</p>
+            <p className="font-display text-3xl font-bold leading-none">{stats.classDaysCount}</p>
+            <p className="text-xs font-semibold text-muted-foreground">class days</p>
           </CardContent>
         </Card>
-        <Card className="border-border/60">
+        <Card className="rounded-3xl shadow-soft">
           <CardContent className="p-4 space-y-1">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
               <TrendingUp className="h-3 w-3" /> Rate
             </div>
-            <p className="text-2xl font-bold text-brand-gradient">
+            <p className="font-display text-3xl font-bold leading-none text-primary">
               {stats.attendanceRate}%
             </p>
-            <p className="text-[10px] text-muted-foreground">attendance rate</p>
+            <p className="text-xs font-semibold text-muted-foreground">attendance rate</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Heatmap */}
-      <Card className="border-border/60">
-        <CardContent className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold flex items-center gap-2">
-              <Flame className="h-4 w-4 text-amber-600" /> 90-day heatmap
-            </h3>
-            <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> Attended
+      <Card className="relative overflow-hidden rounded-3xl shadow-soft">
+        <Mandala size={90} className="pointer-events-none absolute -right-7 -top-8 opacity-70" />
+        <CardContent className="relative p-6 space-y-4">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h2 className="font-display text-xl font-semibold flex items-center gap-2">
+              <Flame className="h-4 w-4 text-primary" /> 90-day heatmap
+            </h2>
+            <div className="flex items-center gap-3 text-xs font-bold text-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="h-3.5 w-3.5 rounded-full bg-marigold" /> Attended
               </span>
-              <span className="flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-sm bg-muted-foreground/20" /> Missed
+              <span className="flex items-center gap-1.5">
+                <span className="h-3.5 w-3.5 rounded-full bg-rose/70" /> Missed
               </span>
-              <span className="flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-sm bg-transparent border border-border" /> No class
+              <span className="flex items-center gap-1.5">
+                <span className="h-3.5 w-3.5 rounded-full bg-transparent border-2 border-input" /> No class
               </span>
             </div>
           </div>
@@ -161,7 +166,7 @@ export function JournalView() {
               {WD.map((d, i) => (
                 <div
                   key={i}
-                  className="h-5 w-3 text-[9px] text-muted-foreground/60 grid place-items-center"
+                  className="h-5 w-3 text-[10px] font-bold text-muted-foreground grid place-items-center"
                 >
                   {i % 2 === 1 ? d : ""}
                 </div>
@@ -175,20 +180,20 @@ export function JournalView() {
                     return (
                       <div
                         key={di}
-                        className="h-5 w-5 rounded-sm bg-transparent"
+                        className="h-5 w-5 rounded-full bg-transparent"
                       />
                     );
                   }
                   const cls = day.attended
-                    ? "bg-emerald-500 hover:bg-emerald-600"
+                    ? "bg-marigold hover:bg-saffron"
                     : day.hadClass
-                    ? "bg-muted-foreground/20 hover:bg-muted-foreground/30"
-                    : "bg-transparent border border-border/60 hover:border-border";
+                    ? "bg-rose/70 hover:bg-rose"
+                    : "bg-transparent border-2 border-border hover:border-input";
                   return (
                     <div
                       key={di}
                       title={`${prettyDate(day.date)}${day.attended ? " · Attended" : day.hadClass ? " · Missed" : " · No class"}`}
-                      className={`h-5 w-5 rounded-sm transition cursor-default ${cls}`}
+                      className={`h-5 w-5 rounded-full transition cursor-default ${cls}`}
                     />
                   );
                 })}
@@ -197,7 +202,7 @@ export function JournalView() {
           </div>
 
           {/* Month labels (approximate) */}
-          <div className="flex gap-1 text-[10px] text-muted-foreground/60 pl-6">
+          <div className="flex gap-1 text-[10px] font-bold text-muted-foreground pl-6">
             {weeks.map((_, i) =>
               i % 4 === 0 ? (
                 <span key={i} className="w-[28px] text-center">
@@ -214,9 +219,9 @@ export function JournalView() {
       </Card>
 
       {/* Recent attendances list */}
-      <Card className="border-border/60">
+      <Card className="rounded-3xl shadow-soft">
         <CardContent className="p-6 space-y-3">
-          <h3 className="font-semibold">Recent practice</h3>
+          <h2 className="font-display text-xl font-semibold">Recent practice</h2>
           {days.filter((d) => d.attended).length === 0 ? (
             <EmptyState
               icon={Calendar}
@@ -234,11 +239,11 @@ export function JournalView() {
                 .map((d) => (
                   <div
                     key={d.date}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/30 transition"
+                    className="flex items-center gap-3 p-2 min-h-11 rounded-2xl hover:bg-accent/30 transition"
                   >
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
+                      <p className="text-sm font-extrabold truncate">
                         {d.className ?? "Yoga Class"}
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -247,7 +252,7 @@ export function JournalView() {
                     </div>
                     <Badge
                       variant="outline"
-                      className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] shrink-0"
+                      className="rounded-full border-transparent bg-success-soft text-success text-xs font-extrabold shrink-0"
                     >
                       Attended
                     </Badge>

@@ -1,3 +1,4 @@
 #!/bin/bash
-cd /home/z/my-project/mini-services/yoga-worker
+# Optional self-host runner. Requires CRON_SECRET and WORKER_BASE_URL in the environment.
+cd "$(dirname "$0")"
 exec bun index.ts

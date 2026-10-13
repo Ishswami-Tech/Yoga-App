@@ -1,27 +1,32 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { startWatchdog } from "@/lib/services/watchdog";
+import { assertEnvOnce } from "@/lib/env";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-// Lightweight liveness probe + DB connectivity check. Also starts the in-app
-// worker watchdog on the first hit so the platform is self-sufficient even
-// if the external worker mini-service (port 3004) is not running.
+// Liveness + readiness probe. Reports DB connectivity and which integrations
+// are configured (booleans / variable names only, never values).
 export async function GET() {
+  const env = assertEnvOnce();
+  let dbOk = false;
+  let dbError: string | undefined;
   try {
-    startWatchdog();
-    const c = await db.user.count();
-    return NextResponse.json({
-      status: "ok",
-      db: "ok",
-      users: c,
-      watchdog: "started",
-      ts: new Date().toISOString(),
-    });
+    await db.$queryRaw`SELECT 1`;
+    dbOk = true;
   } catch (e) {
-    return NextResponse.json(
-      { status: "degraded", error: e instanceof Error ? e.message : "db error" },
-      { status: 500 }
-    );
+    dbError = e instanceof Error ? e.constructor.name : "error";
   }
+  const status = dbOk ? (env.ok ? "ok" : "degraded") : "down";
+  return NextResponse.json(
+    {
+      status,
+      db: dbOk ? "ok" : "error",
+      ...(dbError ? { dbError } : {}),
+      integrations: env.integrations,
+      missingEnv: env.problems.map((p) => p.name),
+      ts: new Date().toISOString(),
+    },
+    { status: dbOk ? 200 : 503, headers: { "Cache-Control": "no-store" } }
+  );
 }

@@ -184,56 +184,54 @@ export function ClassCountdown({ date, startTime, endTime, variant = "hero", cla
     <div className={className}>
       {tick.phase === "live" ? (
         <div className="space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white text-emerald-700 px-4 py-1.5 text-sm font-semibold shadow">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#3B1F1A] text-white px-4 py-1.5 text-sm font-bold shadow">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#F5A623] animate-pulse" />
             LIVE NOW
           </div>
           <div>
-            <div className="flex items-baseline gap-1.5 text-primary-foreground">
-              <Flame className="h-5 w-5 text-amber-300" />
-              <span className="text-2xl font-bold tabular-nums">{tick.label}</span>
+            <div className="flex items-baseline gap-1.5 text-[#3B1F1A]">
+              <Flame className="h-5 w-5 text-[#B8461F]" />
+              <span className="font-display text-3xl font-bold tabular-nums">{tick.label}</span>
             </div>
-            <p className="text-xs text-primary-foreground/70">{tick.sub}</p>
+            <p className="text-xs font-semibold text-[#5A372E]">{tick.sub}</p>
           </div>
           {/* Live progress bar */}
-          <div className="h-1.5 rounded-full bg-white/20 overflow-hidden">
+          <div className="h-2 rounded-full bg-[#3B1F1A]/15 overflow-hidden">
             <div
-              className="h-full bg-white rounded-full transition-[width] duration-1000 ease-linear"
+              className="h-full bg-[#3B1F1A] rounded-full transition-[width] duration-1000 ease-linear"
               style={{ width: `${Math.max(2, tick.pct * 100)}%` }}
             />
           </div>
         </div>
       ) : tick.phase === "before" ? (
         <div className="space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs text-primary-foreground">
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#FFFBF2] px-3 py-1 text-xs font-bold text-[#3B1F1A]">
             <Clock className="h-3.5 w-3.5" /> Class starts soon
           </div>
-          <div className="flex items-end gap-2">
-            {segments.map((seg, i) => (
-              <div key={seg.l} className="flex items-end gap-2">
-                <div className="text-center">
-                  <div className="grid place-items-center min-w-[3.2rem] rounded-xl bg-white/15 backdrop-blur px-3 py-2.5">
-                    <span className="text-3xl font-bold tabular-nums text-primary-foreground">
-                      {pad(seg.v)}
-                    </span>
-                  </div>
-                  <p className="text-[10px] uppercase tracking-wider text-primary-foreground/70 mt-1">
-                    {seg.l}
-                  </p>
+          <div
+            role="timer"
+            aria-label={`Class starts in ${segments.map((g) => `${g.v} ${g.l}`).join(" ")}`}
+            className="flex w-full max-w-md gap-2.5"
+          >
+            {segments.map((seg) => (
+              <div
+                key={seg.l}
+                className="flex-1 rounded-[1.25rem] bg-[#3B1F1A] px-0 pb-2 pt-2.5 text-center text-white shadow-[0_6px_12px_-4px_rgb(59_31_26/0.5)]"
+              >
+                <div className="font-display text-3xl md:text-4xl font-bold leading-none tabular-nums">
+                  {pad(seg.v)}
                 </div>
-                {i < segments.length - 1 && (
-                  <span className="text-2xl font-bold text-primary-foreground/40 mb-5">:</span>
-                )}
+                <div className="mt-1 text-xs font-bold text-[#FFE4B8]">{seg.l}</div>
               </div>
             ))}
           </div>
         </div>
       ) : (
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs text-primary-foreground">
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#FFFBF2] px-3 py-1 text-xs font-bold text-[#3B1F1A]">
             <CheckCircle2 className="h-3.5 w-3.5" /> Class ended
           </div>
-          <p className="text-sm text-primary-foreground/80">{tick.sub}</p>
+          <p className="text-sm font-semibold text-[#5A372E]">{tick.sub}</p>
         </div>
       )}
     </div>

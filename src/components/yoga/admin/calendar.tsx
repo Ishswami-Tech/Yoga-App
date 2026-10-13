@@ -65,12 +65,30 @@ type CalendarResp = {
 const WD_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const STATUS_COLORS: Record<string, string> = {
-  READY: "bg-emerald-500",
-  COMPLETED: "bg-sky-500",
-  PENDING_MEET: "bg-amber-500",
-  CANCELLED: "bg-rose-400",
-  FAILED: "bg-rose-600",
+  READY: "bg-chart-4",
+  COMPLETED: "bg-foreground",
+  PENDING_MEET: "bg-marigold",
+  CANCELLED: "bg-primary",
+  FAILED: "bg-primary",
 };
+
+const STATUS_CHIP: Record<string, string> = {
+  READY: "bg-success-soft text-success",
+  COMPLETED: "bg-secondary text-foreground",
+  PENDING_MEET: "bg-marigold/40 text-foreground",
+  CANCELLED: "bg-accent text-primary",
+  FAILED: "bg-accent text-primary",
+};
+
+function dayTint(day: CalendarDay): string {
+  if (day.exception?.type === "NO_CLASS") return "border-muted bg-muted";
+  const sts = day.classes.map((c) => c.status);
+  if (sts.length === 0) return "border-border bg-card";
+  if (sts.some((x) => x === "FAILED" || x === "CANCELLED")) return "border-accent bg-accent";
+  if (sts.some((x) => x === "PENDING_MEET")) return "border-marigold/40 bg-marigold/40";
+  if (sts.every((x) => x === "COMPLETED")) return "border-secondary bg-secondary";
+  return "border-success-soft bg-success-soft";
+}
 
 export function CalendarView() {
   const qc = useQueryClient();
@@ -113,10 +131,10 @@ export function CalendarView() {
         description="Month view of all classes, exceptions and Meet links."
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["admin", "calendar"] })}>
+            <Button variant="outline" onClick={() => qc.invalidateQueries({ queryKey: ["admin", "calendar"] })}>
               <RefreshCw className="h-4 w-4" /> Refresh
             </Button>
-            <Button variant="outline" size="sm" onClick={goToday}>
+            <Button variant="outline" onClick={goToday}>
               Today
             </Button>
           </>
@@ -125,34 +143,36 @@ export function CalendarView() {
 
       {/* Month navigation */}
       <div className="flex items-center justify-between gap-2">
-        <Button variant="outline" size="icon" onClick={prevMonth}>
+        <Button variant="outline" size="icon" aria-label="Previous month" className="h-12 w-12 rounded-full border-2 border-foreground bg-transparent" onClick={prevMonth}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <div className="text-center">
-          <p className="text-lg font-semibold">{q.data?.monthLabel ?? "…"}</p>
-          <p className="text-xs text-muted-foreground">{q.data?.schedules.length ?? 0} active schedule{(q.data?.schedules.length ?? 0) === 1 ? "" : "s"}</p>
+          <p className="font-display text-2xl font-semibold">{q.data?.monthLabel ?? "…"}</p>
+          <p className="text-sm font-semibold text-muted-foreground">{q.data?.schedules.length ?? 0} active schedule{(q.data?.schedules.length ?? 0) === 1 ? "" : "s"}</p>
         </div>
-        <Button variant="outline" size="icon" onClick={nextMonth}>
+        <Button variant="outline" size="icon" aria-label="Next month" className="h-12 w-12 rounded-full border-2 border-foreground bg-transparent" onClick={nextMonth}>
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
 
       {/* Legend */}
       {q.data && q.data.schedules.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-muted-foreground">Status:</span>
-          <Badge className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px]">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 mr-1" /> Ready
-          </Badge>
-          <Badge className="border-transparent bg-sky-500/15 text-sky-700 dark:text-sky-300 text-[10px]">
-            <span className="h-2 w-2 rounded-full bg-sky-500 mr-1" /> Completed
-          </Badge>
-          <Badge className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[10px]">
-            <span className="h-2 w-2 rounded-full bg-amber-500 mr-1" /> Pending
-          </Badge>
-          <Badge className="border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300 text-[10px]">
-            <span className="h-2 w-2 rounded-full bg-rose-400 mr-1" /> Cancelled
-          </Badge>
+        <div className="flex flex-wrap items-center gap-2 text-xs" aria-label="Status legend">
+          {[
+            ["Ready", "bg-success-soft", "bg-chart-4"],
+            ["Completed", "bg-secondary", "bg-foreground"],
+            ["Pending", "bg-marigold/40", "bg-marigold"],
+            ["No class", "bg-muted", "bg-transparent"],
+            ["Cancelled", "bg-accent", "bg-primary"],
+          ].map(([label, bg, dot]) => (
+            <span
+              key={label}
+              className={`inline-flex min-h-8 items-center gap-2 rounded-full px-3.5 text-[13px] font-extrabold text-foreground shadow-sm ${bg}`}
+            >
+              <span className={`h-3 w-3 rounded-full border-2 border-foreground ${dot}`} />
+              {label}
+            </span>
+          ))}
         </div>
       )}
 
@@ -173,67 +193,69 @@ export function CalendarView() {
           onRetry={() => qc.invalidateQueries({ queryKey: ["admin", "calendar", year, month] })}
         />
       ) : q.data ? (
-        <Card className="border-border/60 overflow-hidden">
+        <Card className="overflow-hidden border-border/50 py-0">
           {/* Weekday header */}
-          <div className="grid grid-cols-7 border-b border-border/40 bg-secondary/30">
+          <div className="grid grid-cols-7 border-b border-border/50 bg-secondary/50">
             {WD_LABELS.map((wd) => (
               <div
                 key={wd}
-                className="text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground py-2"
+                className="py-2.5 text-center text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground"
               >
                 {wd}
               </div>
             ))}
           </div>
           {/* Day cells */}
-          <div className="grid grid-cols-7 gap-px bg-border/20">
+          <div className="grid grid-cols-7 gap-1.5 p-2 sm:gap-2 sm:p-3">
             {q.data.days.map((day) => {
               const isToday = day.date === new Date().toISOString().slice(0, 10);
+              const tint = dayTint(day);
+              const interactive = day.classes.length > 0 || !!day.exception;
               return (
                 <div
                   key={day.date}
-                  onClick={() => day.classes.length > 0 || day.exception ? setSelectedDay(day) : null}
-                  className={`min-h-[100px] p-1.5 transition cursor-pointer ${
-                    day.isInMonth ? "bg-background hover:bg-accent/20" : "bg-muted/30 hover:bg-muted/50"
-                  } ${isToday ? "ring-2 ring-primary/40 ring-inset" : ""}`}
+                  role={interactive ? "button" : undefined}
+                  tabIndex={interactive ? 0 : undefined}
+                  onClick={() => (interactive ? setSelectedDay(day) : null)}
+                  onKeyDown={(e) => {
+                    if (interactive && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      setSelectedDay(day);
+                    }
+                  }}
+                  className={`min-h-[72px] rounded-2xl border-2 p-1.5 transition sm:min-h-[96px] sm:p-2.5 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-foreground ${
+                    day.isInMonth ? tint : "border-transparent bg-muted/40 opacity-60"
+                  } ${interactive ? "cursor-pointer" : "cursor-default"} ${
+                    isToday ? "ring-2 ring-foreground ring-offset-2 ring-offset-card" : ""
+                  }`}
                 >
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="mb-1 flex items-center justify-between">
                     <span
-                      className={`text-xs font-medium tabular-nums ${
-                        day.isInMonth
-                          ? "text-foreground"
-                          : "text-muted-foreground/50"
-                      } ${isToday ? "text-primary font-bold" : ""}`}
+                      className={`text-sm font-extrabold tabular-nums ${
+                        day.isInMonth ? "text-foreground" : "text-muted-foreground"
+                      }`}
                     >
                       {day.day}
                     </span>
-                    {day.exception && (
-                      <CalendarOff className="h-3 w-3 text-rose-500" />
-                    )}
+                    {day.exception && <CalendarOff className="h-3.5 w-3.5 text-primary" />}
                   </div>
-                  {/* Exception badge */}
                   {day.exception && (
-                    <div className="rounded bg-rose-500/10 px-1 py-0.5 text-[9px] text-rose-700 dark:text-rose-300 mb-1 truncate">
+                    <div className="mb-1 truncate rounded-full bg-card/70 px-2 py-0.5 text-[10px] font-extrabold text-primary">
                       {day.exception.type === "NO_CLASS" ? "No class" : "Special"}
                     </div>
                   )}
-                  {/* Class chips */}
-                  <div className="space-y-0.5">
+                  <div className="space-y-1">
                     {day.classes.map((c) => {
                       const dotColor = STATUS_COLORS[c.status] ?? "bg-muted";
                       return (
                         <div
                           key={c.id}
-                          className="flex items-center gap-1 rounded bg-secondary/60 px-1 py-0.5 text-[9px] hover:bg-secondary transition cursor-default group"
+                          className="flex items-center gap-1.5 text-[11px] font-bold text-foreground"
                           title={`${c.scheduleName} · ${c.startTime}-${c.endTime} · ${c.status}`}
                         >
-                          <span className={`h-1.5 w-1.5 rounded-full ${dotColor} shrink-0`} />
-                          <span className="truncate text-muted-foreground">
-                            {c.startTime}
-                          </span>
-                          {c.meetUrl && (
-                            <span className="text-emerald-600 shrink-0">●</span>
-                          )}
+                          <span className={`h-2.5 w-2.5 shrink-0 rounded-full border-2 border-foreground ${dotColor}`} />
+                          <span className="truncate">{c.startTime}</span>
+                          {c.meetUrl && <Video className="h-3 w-3 shrink-0 text-success" aria-label="Meet link ready" />}
                         </div>
                       );
                     })}
@@ -247,24 +269,24 @@ export function CalendarView() {
 
       {/* Schedule legend */}
       {q.data && q.data.schedules.length > 0 && (
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
+        <Card>
+          <CardContent className="p-5">
+            <h3 className="font-display text-lg font-semibold mb-3 flex items-center gap-2">
               <CalendarDays className="h-4 w-4 text-primary" /> Active schedules
             </h3>
             <div className="space-y-1.5">
               {q.data.schedules.map((s) => (
-                <div key={s.id} className="flex items-center justify-between gap-2 text-xs">
+                <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                   <span className="font-medium">{s.name}</span>
-                  <span className="text-muted-foreground">{s.startTime}–{s.endTime}</span>
+                  <span className="font-semibold text-muted-foreground">{s.startTime}–{s.endTime}</span>
                   <div className="flex gap-0.5">
                     {s.weekdays.map((on, i) => (
                       <span
                         key={i}
-                        className={`h-4 w-4 rounded text-[8px] grid place-items-center ${
+                        className={`h-6 w-6 rounded-full text-[10px] font-bold grid place-items-center ${
                           on
-                            ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
-                            : "bg-muted text-muted-foreground/30"
+                            ? "bg-success/20 text-success"
+                            : "bg-muted text-muted-foreground"
                         }`}
                       >
                         {WD_LABELS[i][0]}
@@ -302,9 +324,9 @@ function DayDetailDialog({
 
   return (
     <Dialog open={!!day} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="rounded-3xl sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="font-display flex items-center gap-2 text-xl">
             <CalendarDays className="h-5 w-5 text-primary" />
             {day ? prettyDate(day.date) : ""}
           </DialogTitle>
@@ -321,8 +343,8 @@ function DayDetailDialog({
           <div className="space-y-3">
             {/* Exception */}
             {day.exception && (
-              <div className="rounded-lg bg-rose-500/5 border border-rose-500/20 p-3">
-                <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400">
+              <div className="rounded-2xl bg-accent/50 border border-primary/30 p-3.5">
+                <div className="flex items-center gap-2 text-primary">
                   <CalendarOff className="h-4 w-4" />
                   <span className="font-medium text-sm">
                     {day.exception.type === "NO_CLASS" ? "No class" : "Special day"}
@@ -340,7 +362,7 @@ function DayDetailDialog({
             {day.classes.map((c) => (
               <div
                 key={c.id}
-                className="rounded-lg border border-border/60 p-3 space-y-2"
+                className="rounded-2xl border border-border bg-background p-3.5 space-y-2"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
@@ -350,17 +372,7 @@ function DayDetailDialog({
                     </span>
                   </div>
                   <Badge
-                    className={`text-[10px] border-transparent ${
-                      STATUS_COLORS[c.status] ? STATUS_COLORS[c.status].replace("bg-", "bg-") + "/15" : ""
-                    } ${
-                      c.status === "READY"
-                        ? "text-emerald-700 dark:text-emerald-300"
-                        : c.status === "COMPLETED"
-                        ? "text-sky-700 dark:text-sky-300"
-                        : c.status === "CANCELLED"
-                        ? "text-rose-700 dark:text-rose-300"
-                        : "text-muted-foreground"
-                    }`}
+                    className={`border-transparent text-[11px] ${STATUS_CHIP[c.status] ?? "bg-muted text-muted-foreground"}`}
                   >
                     {c.status}
                   </Badge>
@@ -375,15 +387,14 @@ function DayDetailDialog({
                       href={c.meetUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-sm font-bold text-primary hover:underline"
                     >
                       <ExternalLink className="h-3 w-3" />
                       Open Meet
                     </a>
                     <Button
-                      size="sm"
                       variant="ghost"
-                      className="h-6 px-2"
+                      className="h-11 w-11 rounded-full px-2" aria-label="Copy Meet link"
                       onClick={() => copyMeet(c.meetUrl!)}
                     >
                       <Copy className="h-3 w-3" />

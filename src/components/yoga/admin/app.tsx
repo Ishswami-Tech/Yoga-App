@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME } from "@/lib/brand";
 import { AppShell, useMe } from "@/components/yoga/app-shell";
 import { useApp, View } from "@/lib/store";
 import { ViewTransition } from "@/components/yoga/view-transition";
@@ -14,6 +15,7 @@ import {
   MessageCircle,
   ScrollText,
   Settings,
+  Tag,
   BarChart3,
   CalendarRange,
   Send,
@@ -30,6 +32,7 @@ import { WhatsAppView } from "./whatsapp";
 import { AuditView } from "./audit";
 import { AnalyticsView } from "./analytics";
 import { SettingsView } from "./settings";
+import { PricingView } from "./pricing";
 import { BulkMessageView } from "./bulk-message";
 
 const navItems = [
@@ -46,6 +49,7 @@ const navItems = [
   { view: "admin-bulk-message" as View, label: "Bulk Message", icon: Send },
   { view: "admin-analytics" as View, label: "Analytics", icon: BarChart3 },
   { view: "admin-audit" as View, label: "Audit Log", icon: ScrollText },
+  { view: "admin-pricing" as View, label: "Plan and pricing", icon: Tag },
   { view: "admin-settings" as View, label: "Settings", icon: Settings },
 ];
 
@@ -56,7 +60,7 @@ export function AdminApp() {
   const { view } = useApp();
 
   return (
-    <AppShell brand="Prana Live Yoga" role="ADMIN" navItems={navItems}>
+    <AppShell brand={APP_NAME} role="ADMIN" navItems={navItems}>
       <ViewTransition view={view}>
         {view === "admin-dashboard" && <DashboardView />}
         {view === "admin-users" && (
@@ -87,6 +91,7 @@ export function AdminApp() {
         {view === "admin-bulk-message" && <BulkMessageView />}
         {view === "admin-analytics" && <AnalyticsView />}
         {view === "admin-audit" && <AuditView />}
+        {view === "admin-pricing" && <PricingView />}
         {view === "admin-settings" && <SettingsView />}
       </ViewTransition>
     </AppShell>

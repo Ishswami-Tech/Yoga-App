@@ -20,6 +20,14 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+// Sunrise Sadhana status chips (sage / marigold / terracotta / neutral).
+// All pairs are >= 4.5:1 in light and dark.
+export const CHIP_BASE = "min-h-7 px-3 py-0.5 text-[13px] font-extrabold";
+export const CHIP_OK = `${CHIP_BASE} border-transparent bg-[#DCEBD8] text-[#244B2B] dark:bg-[#2F5A36]/60 dark:text-[#DCEBD8]`;
+export const CHIP_WAIT = `${CHIP_BASE} border-transparent bg-[#FBE3B0] text-[#5C3A00] dark:bg-[#F5A623]/25 dark:text-[#FBE3B0]`;
+export const CHIP_BAD = `${CHIP_BASE} border-transparent bg-[#F7C9B6] text-[#7A2A10] dark:bg-[#E8792B]/25 dark:text-[#F7C9B6]`;
+export const CHIP_NEU = `${CHIP_BASE} border-transparent bg-[#F3E3CF] text-[#5A372E] dark:bg-muted dark:text-muted-foreground`;
+
 // --- Semantic status badge -----------------------------------------------
 // Maps common statuses to brand-friendly colors:
 //   emerald  -> ACTIVE/READY/SENT/DELIVERED/PROCESSED/CAPTURED
@@ -33,71 +41,71 @@ const STATUS_MAP: Record<
 > = {
   ACTIVE: {
     label: "Active",
-    className: "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+    className: CHIP_OK,
   },
   READY: {
     label: "Ready",
-    className: "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+    className: CHIP_OK,
   },
   SENT: {
     label: "Sent",
-    className: "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+    className: CHIP_OK,
   },
   DELIVERED: {
     label: "Delivered",
-    className: "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+    className: CHIP_OK,
   },
   PROCESSED: {
     label: "Processed",
-    className: "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+    className: CHIP_OK,
   },
   CAPTURED: {
     label: "Captured",
-    className: "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+    className: CHIP_OK,
   },
   PENDING: {
     label: "Pending",
-    className: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300",
+    className: CHIP_WAIT,
   },
   PENDING_MEET: {
     label: "Meet pending",
-    className: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300",
+    className: CHIP_WAIT,
   },
   PROCESSING: {
     label: "Processing",
-    className: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300",
+    className: CHIP_WAIT,
   },
   FAILED: {
     label: "Failed",
-    className: "border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300",
+    className: CHIP_BAD,
   },
   CANCELLED: {
     label: "Cancelled",
-    className: "border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300",
+    className: CHIP_BAD,
   },
   HALTED: {
     label: "Halted",
-    className: "border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300",
+    className: CHIP_BAD,
   },
   EXPIRED: {
     label: "Expired",
-    className: "border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300",
+    className: CHIP_BAD,
   },
   IGNORED: {
     label: "Ignored",
-    className: "border-border bg-muted text-muted-foreground",
+    className: CHIP_NEU,
   },
   COMPLETED: {
     label: "Completed",
-    className: "border-border bg-muted text-muted-foreground",
+    className: CHIP_NEU,
   },
   REFUNDED: {
     label: "Refunded",
-    className: "border-border bg-muted text-muted-foreground",
+    className: CHIP_NEU,
   },
   DISABLED: {
     label: "Disabled",
-    className: "border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300",
+    className: CHIP_BAD,
   },
 };
 
@@ -117,7 +125,7 @@ export function StatusBadge({
   }
   const c =
     STATUS_MAP[status] ?? {
-      className: "border-border bg-muted text-muted-foreground",
+      className: CHIP_NEU,
     };
   return (
     <Badge variant="outline" className={`${c.className} ${className ?? ""}`}>
@@ -133,7 +141,7 @@ export function ExceptionTypeBadge({ type }: { type: string }) {
     return (
       <Badge
         variant="outline"
-        className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300"
+        className={CHIP_WAIT}
       >
         Special
       </Badge>
@@ -142,7 +150,7 @@ export function ExceptionTypeBadge({ type }: { type: string }) {
   return (
     <Badge
       variant="outline"
-      className="border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300"
+      className={CHIP_BAD}
     >
       No class
     </Badge>
@@ -153,11 +161,11 @@ export function ExceptionTypeBadge({ type }: { type: string }) {
 
 export function RoleBadge({ role }: { role: string }) {
   const map: Record<string, string> = {
-    ADMIN: "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300",
+    ADMIN: CHIP_WAIT,
     INSTRUCTOR:
-      "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+      CHIP_OK,
     STUDENT:
-      "border-transparent bg-secondary text-secondary-foreground",
+      CHIP_NEU,
   };
   return (
     <Badge variant="outline" className={map[role] ?? ""}>
@@ -206,13 +214,13 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <Card className="border-dashed">
+    <Card className="border-dashed border-2 border-border">
       <CardContent className="p-10 flex flex-col items-center text-center gap-3">
-        <div className="h-12 w-12 rounded-full bg-muted grid place-items-center">
-          <Icon className="h-6 w-6 text-muted-foreground" />
+        <div className="h-14 w-14 rounded-full bg-secondary grid place-items-center">
+          <Icon className="h-6 w-6 text-foreground/70" />
         </div>
         <div>
-          <p className="font-medium">{title}</p>
+          <p className="font-display text-xl font-semibold">{title}</p>
           {description && (
             <p className="text-sm text-muted-foreground mt-1 max-w-sm">
               {description}
@@ -233,11 +241,11 @@ export function ErrorCard({
   onRetry?: () => void;
 }) {
   return (
-    <Card className="border-rose-500/40">
+    <Card className="border-[#7A2A10]/40 bg-[#FCE6DB] dark:bg-[#E8792B]/10">
       <CardContent className="p-6 flex flex-col items-start gap-3">
-        <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+        <div className="flex items-center gap-2 text-[#7A2A10] dark:text-[#F7C9B6]">
           <AlertCircle className="h-5 w-5" />
-          <p className="font-medium">Something went wrong</p>
+          <p className="font-display text-lg font-semibold">Something went wrong</p>
         </div>
         <p className="text-sm text-muted-foreground">{message}</p>
         {onRetry && (
@@ -275,23 +283,106 @@ export function PageHeader({
   title,
   description,
   actions,
+  eyebrow,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
+  eyebrow?: string;
 }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
+    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
       <div className="min-w-0">
-        <h1 className="text-2xl font-bold tracking-tight truncate">{title}</h1>
+        {eyebrow && (
+          <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-muted-foreground">
+            {eyebrow}
+          </p>
+        )}
+        <h1 className="font-display text-3xl sm:text-4xl font-semibold leading-tight tracking-tight">
+          {title}
+        </h1>
         {description && (
-          <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
+          <p className="text-[15px] font-semibold text-muted-foreground mt-1">{description}</p>
         )}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
   );
 }
+
+// --- KPI tile (dashboard / subscriptions / payments) ----------------------
+export function KpiTile({
+  label,
+  value,
+  hint,
+  tone = "default",
+}: {
+  label: string;
+  value: ReactNode;
+  hint?: ReactNode;
+  tone?: "default" | "dark" | "wait" | "bad" | "ok";
+}) {
+  const wrap = {
+    default: "bg-card text-card-foreground border border-border/50",
+    dark: "bg-[#3B1F1A] text-[#FFF4E0]",
+    wait: "bg-[#FBE3B0] text-[#5C3A00]",
+    bad: "bg-[#F7C9B6] text-[#7A2A10]",
+    ok: "bg-[#DCEBD8] text-[#244B2B]",
+  }[tone];
+  const sub = {
+    default: "text-muted-foreground",
+    dark: "text-[#F7DCC8]",
+    wait: "text-[#5C3A00]",
+    bad: "text-[#7A2A10]",
+    ok: "text-[#244B2B]",
+  }[tone];
+  return (
+    <div className={`rounded-3xl p-5 shadow-soft min-w-0 ${wrap}`}>
+      <p className={`text-xs font-extrabold uppercase tracking-[0.08em] ${sub}`}>{label}</p>
+      <p
+        className={`font-display text-4xl sm:text-[44px] font-bold leading-[1.1] mt-2 truncate ${
+          tone === "dark" ? "text-[#F5A623]" : ""
+        }`}
+      >
+        {value}
+      </p>
+      {hint && <p className={`text-sm font-semibold mt-0.5 ${sub}`}>{hint}</p>}
+    </div>
+  );
+}
+
+// --- Dark-selected filter chip -------------------------------------------
+export function FilterChip({
+  active,
+  onClick,
+  children,
+  count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  count?: number;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-extrabold transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-foreground/80 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+        active
+          ? "bg-[#3B1F1A] text-[#FFF4E0] dark:bg-[#FFF4E0] dark:text-[#3B1F1A]"
+          : "bg-card text-foreground border-2 border-border hover:bg-secondary"
+      }`}
+    >
+      {children}
+      {count !== undefined && <span className="opacity-80">{count}</span>}
+    </button>
+  );
+}
+
+// Table skin shared by admin lists (header band + dotted row dividers).
+export const TH_CLASS =
+  "bg-secondary text-foreground text-[13px] font-extrabold uppercase tracking-[0.06em] h-12 px-4";
 
 // --- Copyable mono text ---------------------------------------------------
 
@@ -304,7 +395,7 @@ export function MonoText({
 }) {
   return (
     <code
-      className={`font-mono text-[11px] bg-muted/60 px-1.5 py-0.5 rounded ${className ?? ""}`}
+      className={`font-mono text-xs font-semibold bg-secondary text-foreground/80 px-2 py-0.5 rounded-full ${className ?? ""}`}
     >
       {children}
     </code>
@@ -339,7 +430,7 @@ export function CopyButton({
       aria-label={label}
     >
       {done ? (
-        <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+        <Check className="h-3.5 w-3.5 text-success" />
       ) : (
         <Copy className="h-3.5 w-3.5" />
       )}
@@ -365,7 +456,7 @@ export function RevealText({
     <button
       type="button"
       onClick={() => setOpen((v) => !v)}
-      className={`inline-flex items-center gap-1 font-mono text-[11px] hover:text-primary ${className ?? ""}`}
+      className={`inline-flex min-h-6 items-center gap-1 font-mono text-xs font-semibold hover:text-primary ${className ?? ""}`}
       title={text}
     >
       {truncated}

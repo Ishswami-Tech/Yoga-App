@@ -14,6 +14,25 @@ const bodySchema = z.object({
   activeOnly: z.boolean().default(true),
 });
 
+function recipientWhere(activeOnly: boolean) {
+  return {
+    role: "STUDENT",
+    status: "ACTIVE",
+    whatsappNumber: { not: null },
+    ...(activeOnly ? { subscriptions: { some: { status: "ACTIVE" } } } : {}),
+  };
+}
+
+// GET: real recipient count for the composer preview (?activeOnly=true|false).
+export async function GET(req: NextRequest) {
+  return run(async () => {
+    await requireRole("ADMIN");
+    const activeOnly = new URL(req.url).searchParams.get("activeOnly") !== "false";
+    const count = await db.user.count({ where: recipientWhere(activeOnly) });
+    return NextResponse.json({ count, activeOnly });
+  });
+}
+
 // Admin bulk message — sends a custom WhatsApp message to all active members.
 //
 // This is NOT a template message — it uses the WhatsApp Business "text"
@@ -37,14 +56,7 @@ export async function POST(req: NextRequest) {
 
     // Find recipients
     const recipients = await db.user.findMany({
-      where: {
-        role: "STUDENT",
-        status: "ACTIVE",
-        whatsappNumber: { not: null },
-        ...(activeOnly
-          ? { subscriptions: { some: { status: "ACTIVE" } } }
-          : {}),
-      },
+      where: recipientWhere(activeOnly),
       select: { id: true, name: true, whatsappNumber: true },
     });
 

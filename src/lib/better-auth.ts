@@ -1,15 +1,9 @@
 // Better Auth server configuration.
 //
-// This replaces the custom email/password + Google mock + OTP auth with
-// Better Auth's framework. Better Auth handles:
-//   - Email/password sign-up & sign-in
-//   - Google OAuth (needs real GOOGLE_CLIENT_ID in production)
-//   - Session management (cookies, expiry, refresh)
-//   - Account linking (multiple providers per user)
-//
-// The existing role system (STUDENT/INSTRUCTOR/ADMIN) is preserved via
-// additional user fields. The existing `requireAuth`/`requireRole`
-// helpers in src/lib/auth.ts are updated to read Better Auth sessions.
+// Sign-in is WhatsApp OTP only (see /api/auth/otp/*). Better Auth is kept for
+// session lookup/sign-out of existing sessions; email/password and social
+// providers are disabled, and the catch-all route only exposes get-session
+// and sign-out.
 
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
@@ -18,32 +12,36 @@ import { headers } from "next/headers";
 
 const prisma = new PrismaClient();
 
+function authSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === "production" && process.env.NEXT_PHASE !== "phase-production-build") {
+    throw new Error("AUTH_SECRET must be set in production");
+  }
+  return "yoga-dev-auth-secret-v1";
+}
+
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
-    provider: "sqlite",
+    provider: "postgresql",
   }),
-  baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-  secret: process.env.AUTH_SECRET || "yoga-dev-auth-secret-v1",
+  baseURL: process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === "production" ? undefined : "http://localhost:3000"),
+  secret: authSecret(),
   emailAndPassword: {
-    enabled: true,
-    autoSignIn: true,
-  },
-  socialProviders: {
-    // Google OAuth — uncomment in production with real credentials:
-    // google: {
-    //   clientId: process.env.GOOGLE_CLIENT_ID as string,
-    //   clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-    // },
+    enabled: false,
   },
   user: {
     additionalFields: {
+      // input:false => clients cannot set these via sign-up / update-user.
       role: {
         type: "string",
         defaultValue: "STUDENT",
+        input: false,
       },
       status: {
         type: "string",
         defaultValue: "ACTIVE",
+        input: false,
       },
       phone: {
         type: "string",

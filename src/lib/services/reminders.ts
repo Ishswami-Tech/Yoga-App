@@ -18,6 +18,9 @@ import { db } from "@/lib/db";
 import { whatsapp, WHATSAPP_TEMPLATE_NAME } from "@/lib/providers/whatsapp";
 import { prettyTime } from "./scheduling";
 
+// Soft time budget per job run (the worker route has maxDuration = 60s).
+const JOB_BUDGET_MS = 45_000;
+
 export type ReminderResult = {
   classesProcessed: number;
   messagesSent: number;
@@ -35,6 +38,7 @@ export async function sendReminders(opts?: {
   nowOverride?: Date;
 }): Promise<ReminderResult> {
   const now = opts?.nowOverride ?? new Date();
+  const deadline = Date.now() + JOB_BUDGET_MS;
   const result: ReminderResult = {
     classesProcessed: 0,
     messagesSent: 0,
@@ -50,9 +54,14 @@ export async function sendReminders(opts?: {
       meetUrl: { not: null },
     },
     include: { schedule: true },
+    orderBy: { reminderAt: "asc" },
+    take: 20,
   });
 
   for (const cls of due) {
+    // Stay inside the serverless time limit; unfinished classes stay due and
+    // are picked up by the next tick (reminderSentAt is only set after a pass).
+    if (Date.now() > deadline) break;
     const detail = {
       classId: cls.id,
       date: cls.date,
@@ -75,6 +84,7 @@ export async function sendReminders(opts?: {
     });
 
     for (const member of activeMembers) {
+      if (Date.now() > deadline) break;
       if (!member.whatsappNumber) {
         detail.skipped++;
         continue;
@@ -124,6 +134,13 @@ export async function sendReminders(opts?: {
       }
     }
 
+    // Out of time mid-class: leave reminderSentAt null. Members already sent
+    // are skipped next tick via the per-member idempotency check above.
+    if (Date.now() > deadline) {
+      result.details.push(detail);
+      break;
+    }
+
     // Only mark reminderSentAt if we attempted every eligible member; failed
     // sends are retried by the retry job, but the class-level gate prevents
     // re-scanning on the next worker tick.
@@ -151,6 +168,7 @@ export async function retryFailedMessages(): Promise<{
     stillFailing: 0,
   };
 
+  const deadline = Date.now() + JOB_BUDGET_MS;
   const cutoff = new Date(Date.now() - 24 * 3600 * 1000);
   const failed = await db.whatsAppMessage.findMany({
     where: {
@@ -163,6 +181,7 @@ export async function retryFailedMessages(): Promise<{
   });
 
   for (const msg of failed) {
+    if (Date.now() > deadline) break;
     out.retried++;
     if (!msg.yogaClass?.meetUrl || !msg.user?.whatsappNumber) {
       out.stillFailing++;

@@ -1,17 +1,21 @@
-// Razorpay adapter.
+// Razorpay Subscriptions adapter (live API only).
 //
-// In production this module would call the real Razorpay REST API using
-// RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET. In this sandbox environment we
-// simulate the lifecycle deterministically so the rest of the platform
-// (subscriptions, payments, webhooks, access control) can be exercised
-// end-to-end without real credentials.
-//
-// The public method signatures mirror the real Razorpay Subscription API so
-// the adapter can be swapped for the live implementation later.
+// Requires RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET. There is no simulation: when the keys are
+// missing every call throws PaymentsUnavailableError, which API routes turn into a 503.
+// One-time payments on any gateway live in src/lib/payments/.
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { db } from "@/lib/db";
 
-export const RAZORPAY_PLAN_AMOUNT = 50000; // ₹500 in paise
+export class PaymentsUnavailableError extends Error {
+  constructor() {
+    super("Payments are temporarily unavailable");
+    this.name = "PaymentsUnavailableError";
+  }
+}
+
+// Default price; the live price is set by a super admin (see src/lib/services/pricing.ts).
+export const RAZORPAY_PLAN_AMOUNT = 150000; // ₹1,500 in paise
 export const RAZORPAY_PLAN_CURRENCY = "INR";
-export const RAZORPAY_PLAN_ID = "plan_yoga_monthly_500";
 export const RAZORPAY_PLAN_NAME = "Yoga Membership - Monthly";
 
 export type RazorpaySubscriptionStatus =
@@ -27,6 +31,8 @@ export type CreateSubscriptionInput = {
   userId: string;
   userEmail: string;
   userName: string;
+  /** Price in paise. Defaults to RAZORPAY_PLAN_AMOUNT. */
+  amount?: number;
 };
 
 export type CreatedSubscription = {
@@ -38,156 +44,186 @@ export type CreatedSubscription = {
   status: string;
 };
 
-function id(prefix: string): string {
-  return `${prefix}_${Math.random().toString(36).slice(2, 14)}`;
+const API_BASE = "https://api.razorpay.com/v1";
+const SUBSCRIPTION_TOTAL_COUNT = 120; // 10 years of monthly billing; the student can cancel any time.
+
+type Credentials = { keyId: string; keySecret: string };
+
+function liveCredentials(): Credentials | null {
+  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
+  const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
+  return keyId && keySecret ? { keyId, keySecret } : null;
 }
 
-// In-memory map of subscription -> simulated state. Persisted via DB but
-// the adapter itself is stateless; this just tracks the simulated checkout.
-const simulatedCheckouts = new Map<
-  string,
-  { subscriptionId: string; userId: string; authorized: boolean }
->();
+function requireCredentials(): Credentials {
+  const c = liveCredentials();
+  if (!c) throw new PaymentsUnavailableError();
+  return c;
+}
+
+export function isRazorpayConfigured(): boolean {
+  return liveCredentials() !== null;
+}
+
+/** Public key id for Checkout (never the secret). */
+export function getPublicKeyId(): string {
+  return requireCredentials().keyId;
+}
+
+export type RazorpaySubscriptionEntity = {
+  id: string;
+  plan_id?: string;
+  status: string;
+  current_start?: number | null;
+  current_end?: number | null;
+  charge_at?: number | null;
+  paid_count?: number;
+  remaining_count?: number;
+  notes?: Record<string, string> | unknown[];
+};
+
+async function rzpRequest<T>(
+  method: "GET" | "POST",
+  path: string,
+  body?: unknown
+): Promise<T> {
+  const credentials = requireCredentials();
+  const response = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", Authorization: authHeader(credentials) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = (await response.json().catch(() => null)) as
+    | (T & { error?: { description?: string } })
+    | null;
+  if (!response.ok || !data) {
+    throw new Error(`Razorpay request failed: ${data?.error?.description ?? response.status}`);
+  }
+  return data;
+}
+
+function authHeader(credentials: Credentials): string {
+  return `Basic ${Buffer.from(`${credentials.keyId}:${credentials.keySecret}`).toString("base64")}`;
+}
+
+// Razorpay plan amounts cannot be edited, so each price gets its own plan. The plan id for a price is
+// created once through the API and remembered in AppSettings.
+async function ensureLivePlan(
+  amount: number,
+  credentials: Credentials
+): Promise<string> {
+  const key = `razorpayLivePlan_${amount}`;
+  const cached = await db.appSettings.findUnique({ where: { key } });
+  if (cached?.value) return cached.value;
+  const response = await fetch(`${API_BASE}/plans`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: authHeader(credentials) },
+    body: JSON.stringify({
+      period: "monthly",
+      interval: 1,
+      item: { name: RAZORPAY_PLAN_NAME, amount, currency: RAZORPAY_PLAN_CURRENCY },
+    }),
+  });
+  const data = (await response.json().catch(() => null)) as { id?: string; error?: { description?: string } } | null;
+  if (!response.ok || !data?.id) {
+    throw new Error(`Razorpay plan creation failed: ${data?.error?.description ?? response.status}`);
+  }
+  await db.appSettings.upsert({ where: { key }, update: { value: data.id }, create: { key, value: data.id } });
+  return data.id;
+}
+
+async function createLiveSubscription(
+  input: CreateSubscriptionInput,
+  credentials: Credentials
+): Promise<CreatedSubscription> {
+  const amount = input.amount ?? RAZORPAY_PLAN_AMOUNT;
+  const planId = await ensureLivePlan(amount, credentials);
+  const response = await fetch(`${API_BASE}/subscriptions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: authHeader(credentials),
+    },
+    body: JSON.stringify({
+      plan_id: planId,
+      total_count: SUBSCRIPTION_TOTAL_COUNT,
+      customer_notify: 1,
+      notes: { userId: input.userId, email: input.userEmail },
+    }),
+  });
+  const data = (await response.json().catch(() => null)) as {
+    id?: string;
+    status?: string;
+    short_url?: string;
+    error?: { description?: string };
+  } | null;
+  if (!response.ok || !data?.id) {
+    throw new Error(`Razorpay subscription creation failed: ${data?.error?.description ?? response.status}`);
+  }
+  return {
+    razorpaySubscriptionId: data.id,
+    razorpayPlanId: planId,
+    amount,
+    currency: RAZORPAY_PLAN_CURRENCY,
+    shortUrl: data.short_url ?? "",
+    status: (data.status ?? "created").toUpperCase(),
+  };
+}
 
 export const razorpay = {
-  isMock: true,
-
-  async createSubscription(
-    input: CreateSubscriptionInput
-  ): Promise<CreatedSubscription> {
-    const subscriptionId = id("sub");
-    simulatedCheckouts.set(subscriptionId, {
-      subscriptionId,
-      userId: input.userId,
-      authorized: false,
-    });
-    return {
-      razorpaySubscriptionId: subscriptionId,
-      razorpayPlanId: RAZORPAY_PLAN_ID,
-      amount: RAZORPAY_PLAN_AMOUNT,
-      currency: RAZORPAY_PLAN_CURRENCY,
-      shortUrl: `https://rzp.io/i/${subscriptionId.slice(-6)}`,
-      status: "CREATED",
-    };
+  get configured(): boolean {
+    return isRazorpayConfigured();
   },
 
-  // Simulate the customer authorising the subscription in Checkout. In real
-  // life this is done by the customer on the Razorpay hosted page; we expose
-  // a helper so an admin/test can drive the lifecycle.
-  async authorizeSubscription(subscriptionId: string): Promise<{
-    authorized: boolean;
-    paymentId: string;
-    signature: string;
-  }> {
-    const entry = simulatedCheckouts.get(subscriptionId);
-    if (!entry) {
-      throw new Error("Unknown subscription / no checkout initiated");
-    }
-    entry.authorized = true;
-    const paymentId = id("pay");
-    const signature = id("sig");
-    return { authorized: true, paymentId, signature };
+  async createSubscription(input: CreateSubscriptionInput): Promise<CreatedSubscription> {
+    return createLiveSubscription(input, requireCredentials());
   },
 
-  // Verify the signature returned from Checkout. In the mock adapter we
-  // accept any signature produced by authorizeSubscription() and reject
-  // everything else.
-  verifyPaymentSignature(
-    _subscriptionId: string,
-    _paymentId: string,
-    signature: string
-  ): boolean {
-    return signature.startsWith("sig_");
+  async fetchSubscription(subscriptionId: string): Promise<RazorpaySubscriptionEntity> {
+    return rzpRequest<RazorpaySubscriptionEntity>("GET", `/subscriptions/${encodeURIComponent(subscriptionId)}`);
   },
 
-  // Produce the synthetic webhook payloads the platform expects to receive
-  // after a checkout. Used by the test harness and by the admin "simulate
-  // payment" action.
-  buildAuthorizedEvent(subscriptionId: string, paymentId: string) {
-    return {
-      event: "subscription.activated",
-      payload: {
-        subscription: {
-          entity: {
-            id: subscriptionId,
-            status: "active" as RazorpaySubscriptionStatus,
-            current_start: Math.floor(Date.now() / 1000),
-            current_end: Math.floor(Date.now() / 1000) + 30 * 86400,
-            charge_at: Math.floor(Date.now() / 1000) + 30 * 86400,
-            amount: RAZORPAY_PLAN_AMOUNT,
-            currency: RAZORPAY_PLAN_CURRENCY,
-            plan_id: RAZORPAY_PLAN_ID,
-          },
-        },
-        payment: {
-          entity: {
-            id: paymentId,
-            amount: RAZORPAY_PLAN_AMOUNT,
-            currency: RAZORPAY_PLAN_CURRENCY,
-            status: "captured",
-            method: "upi",
-            fee: 1180, // ~₹11.80 gateway fee (mock)
-            tax: 0,
-            created_at: Math.floor(Date.now() / 1000),
-          },
-        },
-      },
-    };
+  async cancelSubscription(subscriptionId: string, atCycleEnd: boolean): Promise<RazorpaySubscriptionEntity> {
+    return rzpRequest<RazorpaySubscriptionEntity>(
+      "POST",
+      `/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`,
+      { cancel_at_cycle_end: atCycleEnd ? 1 : 0 }
+    );
   },
 
-  buildChargedEvent(subscriptionId: string, cycle: number) {
-    const paymentId = id("pay");
-    return {
-      event: "subscription.charged",
-      payload: {
-        subscription: {
-          entity: {
-            id: subscriptionId,
-            status: "active",
-            current_start: Math.floor(Date.now() / 1000),
-            current_end: Math.floor(Date.now() / 1000) + 30 * 86400,
-            charge_at: Math.floor(Date.now() / 1000) + 30 * 86400,
-          },
-        },
-        payment: {
-          entity: {
-            id: paymentId,
-            amount: RAZORPAY_PLAN_AMOUNT,
-            currency: RAZORPAY_PLAN_CURRENCY,
-            status: "captured",
-            fee: 1180,
-            tax: 0,
-            created_at: Math.floor(Date.now() / 1000),
-            notes: { cycle: String(cycle) },
-          },
-        },
-      },
-    };
+  async pauseSubscription(subscriptionId: string): Promise<RazorpaySubscriptionEntity> {
+    return rzpRequest<RazorpaySubscriptionEntity>(
+      "POST",
+      `/subscriptions/${encodeURIComponent(subscriptionId)}/pause`,
+      { pause_at: "now" }
+    );
   },
 
-  buildHaltedEvent(subscriptionId: string) {
-    return {
-      event: "subscription.halted",
-      payload: {
-        subscription: {
-          entity: { id: subscriptionId, status: "halted" },
-        },
-      },
-    };
+  async resumeSubscription(subscriptionId: string): Promise<RazorpaySubscriptionEntity> {
+    return rzpRequest<RazorpaySubscriptionEntity>(
+      "POST",
+      `/subscriptions/${encodeURIComponent(subscriptionId)}/resume`,
+      { resume_at: "now" }
+    );
   },
 
-  buildCancelledEvent(subscriptionId: string) {
-    return {
-      event: "subscription.cancelled",
-      payload: {
-        subscription: {
-          entity: {
-            id: subscriptionId,
-            status: "cancelled",
-            cancelled_at: Math.floor(Date.now() / 1000),
-          },
-        },
-      },
-    };
+  // Razorpay signs `${payment_id}|${subscription_id}` with the key secret (HMAC-SHA256, hex).
+  verifyPaymentSignature(subscriptionId: string, paymentId: string, signature: string): boolean {
+    return verifyPaymentSignatureWithSecret(requireCredentials().keySecret, subscriptionId, paymentId, signature);
   },
 };
+
+/** Pure helper (unit-testable): constant-time check of a Checkout signature. */
+export function verifyPaymentSignatureWithSecret(
+  keySecret: string,
+  subscriptionId: string,
+  paymentId: string,
+  signature: string
+): boolean {
+  if (!signature) return false;
+  const expected = Buffer.from(
+    createHmac("sha256", keySecret).update(`${paymentId}|${subscriptionId}`).digest("hex")
+  );
+  const provided = Buffer.from(signature);
+  return provided.length === expected.length && timingSafeEqual(provided, expected);
+}

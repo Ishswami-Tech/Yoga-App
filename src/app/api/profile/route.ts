@@ -37,7 +37,6 @@ export async function PATCH(req: NextRequest) {
       data: {
         name: data.name,
         phone: data.phone ?? null,
-        whatsappNumber: data.whatsappNumber ?? null,
       },
     });
     await audit({

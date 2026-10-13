@@ -4,7 +4,6 @@
 // helpers from @/components/yoga/student/format where possible.
 
 import { ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,36 +23,89 @@ export type ClassStatus =
   | "COMPLETED"
   | "FAILED";
 
-const STATUS_MAP: Record<
-  ClassStatus,
-  { label: string; className: string; strike?: boolean }
-> = {
-  READY: {
-    label: "Ready",
-    className:
-      "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
-  },
-  COMPLETED: {
-    label: "Completed",
-    className:
-      "border-transparent bg-secondary text-secondary-foreground",
-  },
-  PENDING_MEET: {
-    label: "Meet pending",
-    className:
-      "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  },
-  CANCELLED: {
-    label: "Cancelled",
-    strike: true,
-    className:
-      "border-transparent bg-muted text-muted-foreground line-through",
-  },
-  FAILED: {
-    label: "Failed",
-    className:
-      "border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300",
-  },
+// Sunrise chip tones: sage = good, marigold = waiting, terracotta = problem.
+export type ChipTone = "sage" | "marigold" | "terracotta" | "neutral";
+
+const CHIP_TONES: Record<ChipTone, string> = {
+  sage: "bg-emerald-400 text-ink dark:bg-emerald-400 dark:text-ink",
+  marigold: "bg-marigold text-ink",
+  terracotta: "bg-rose text-ink",
+  neutral: "bg-secondary text-secondary-foreground",
+};
+
+/** Pill status chip (min 28px tall) used across the instructor workspace. */
+export function StatusChip({
+  tone = "neutral",
+  icon,
+  children,
+  className,
+}: {
+  tone?: ChipTone;
+  icon?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`inline-flex min-h-7 items-center gap-1.5 rounded-full px-3 text-xs font-extrabold [&>svg]:size-3.5 ${CHIP_TONES[tone]} ${className ?? ""}`}
+    >
+      {icon}
+      {children}
+    </span>
+  );
+}
+
+/** Small uppercase eyebrow label. */
+export function Eyebrow({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <p
+      className={`text-xs font-extrabold uppercase tracking-[0.08em] text-muted-foreground ${className ?? ""}`}
+    >
+      {children}
+    </p>
+  );
+}
+
+/** Page heading: eyebrow + Fraunces title + optional subtitle. */
+export function PageHeading({
+  eyebrow,
+  title,
+  subtitle,
+  children,
+}: {
+  eyebrow?: string;
+  title: string;
+  subtitle?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex items-end justify-between gap-4 flex-wrap">
+      <div className="min-w-0">
+        {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
+        <h1 className="font-display text-3xl md:text-4xl font-semibold leading-tight text-foreground">
+          {title}
+        </h1>
+        {subtitle && (
+          <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+const STATUS_MAP: Record<ClassStatus, { label: string; tone: ChipTone; strike?: boolean }> = {
+  READY: { label: "Ready", tone: "sage" },
+  COMPLETED: { label: "Completed", tone: "neutral" },
+  PENDING_MEET: { label: "Meet pending", tone: "marigold" },
+  CANCELLED: { label: "Cancelled", tone: "neutral", strike: true },
+  FAILED: { label: "Failed", tone: "terracotta" },
 };
 
 export function ClassStatusBadge({
@@ -65,14 +117,14 @@ export function ClassStatusBadge({
 }) {
   const s = (STATUS_MAP as Record<string, (typeof STATUS_MAP)[ClassStatus]>)[
     status
-  ] ?? {
-    label: status ?? "Unknown",
-    className: "border-border bg-muted text-muted-foreground",
-  };
+  ] ?? { label: status ?? "Unknown", tone: "neutral" as ChipTone };
   return (
-    <Badge variant="outline" className={`${s.className} ${className ?? ""}`}>
+    <StatusChip
+      tone={s.tone}
+      className={`${s.strike ? "line-through" : ""} ${className ?? ""}`}
+    >
       {s.label}
-    </Badge>
+    </StatusChip>
   );
 }
 
@@ -80,23 +132,9 @@ export function ClassStatusBadge({
 
 export function ExceptionTypeBadge({ type }: { type: string }) {
   if (type === "SPECIAL") {
-    return (
-      <Badge
-        variant="outline"
-        className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300"
-      >
-        Special
-      </Badge>
-    );
+    return <StatusChip tone="marigold">Special</StatusChip>;
   }
-  return (
-    <Badge
-      variant="outline"
-      className="border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300"
-    >
-      No class
-    </Badge>
-  );
+  return <StatusChip tone="terracotta">No class</StatusChip>;
 }
 
 // --- Generic loading / empty / error states ------------------------------
@@ -127,13 +165,13 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <Card className="border-dashed">
+    <Card className="border-dashed border-2 border-border bg-card/70">
       <CardContent className="p-10 flex flex-col items-center text-center gap-3">
-        <div className="h-12 w-12 rounded-full bg-muted grid place-items-center">
-          <Icon className="h-6 w-6 text-muted-foreground" />
+        <div className="h-14 w-14 rounded-full bg-secondary grid place-items-center">
+          <Icon className="h-6 w-6 text-foreground" />
         </div>
         <div>
-          <p className="font-medium">{title}</p>
+          <p className="font-display text-xl font-semibold">{title}</p>
           {description && (
             <p className="text-sm text-muted-foreground mt-1 max-w-sm">
               {description}
@@ -154,15 +192,15 @@ export function ErrorCard({
   onRetry?: () => void;
 }) {
   return (
-    <Card className="border-rose-500/40">
+    <Card className="border-2 border-destructive/40" role="alert">
       <CardContent className="p-6 flex flex-col items-start gap-3">
-        <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+        <div className="flex items-center gap-2 text-destructive">
           <AlertCircle className="h-5 w-5" />
-          <p className="font-medium">Something went wrong</p>
+          <p className="font-display text-lg font-semibold">Something went wrong</p>
         </div>
         <p className="text-sm text-muted-foreground">{message}</p>
         {onRetry && (
-          <Button variant="outline" size="sm" onClick={onRetry}>
+          <Button variant="outline" onClick={onRetry}>
             <RefreshCw className="h-4 w-4" /> Try again
           </Button>
         )}
@@ -185,7 +223,7 @@ export function KV({
   return (
     <div className="flex items-center justify-between gap-4 text-sm">
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium text-right">{children}</span>
+      <span className="font-bold text-right">{children}</span>
     </div>
   );
 }

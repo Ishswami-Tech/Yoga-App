@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/lib/brand";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
@@ -28,7 +29,7 @@ export async function GET() {
     };
 
     const rows: string[] = [];
-    rows.push("# Prana Live Yoga — Students Export");
+    rows.push(`# ${APP_NAME} — Students Export`);
     rows.push(`# Generated: ${new Date().toISOString()}`);
     rows.push("");
     rows.push("Name,Email,Phone,WhatsApp,Status,Membership,Next billing,End date,Total paid (INR),Attendance count,Joined");

@@ -88,9 +88,10 @@ export async function GET() {
       trendPct = Math.round(((lastMonth - prevMonth) / prevMonth) * 100);
     }
 
-    // --- MRR = active subscriptions * plan amount (50000 paise) ---
+    // --- MRR = sum of each active subscription's own monthly amount (paise) ---
     const activeCount = await db.subscription.count({ where: { status: "ACTIVE" } });
-    const mrr = activeCount * 50000;
+    const activeSum = await db.subscription.aggregate({ where: { status: "ACTIVE" }, _sum: { amount: true } });
+    const mrr = activeSum._sum.amount ?? 0;
 
     // --- Projected next 3 months (trend-aware) ---
     // projected[i] = weightedAverage + trendSlope * i  (i = 1, 2, 3)

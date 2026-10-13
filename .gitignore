@@ -55,3 +55,12 @@ server.log
 
 # QA screenshots (regenerated locally, not tracked)
 /qa-shots/
+# local database
+.pgdata/
+*.db
+*.db-journal
+.env
+
+# Playwright
+test-results/
+playwright-report/

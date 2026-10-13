@@ -105,13 +105,12 @@ export function WhatsAppView() {
           <>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => qc.invalidateQueries({ queryKey: ["admin", "whatsapp"] })}
             >
               <RefreshCw className="h-4 w-4" /> Refresh
             </Button>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger size="sm" className="w-40">
+              <SelectTrigger className="h-11 rounded-full font-semibold w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -123,7 +122,6 @@ export function WhatsAppView() {
               </SelectContent>
             </Select>
             <Button
-              size="sm"
               variant="outline"
               onClick={() => retryMut.mutate()}
               disabled={retryMut.isPending}
@@ -140,7 +138,7 @@ export function WhatsAppView() {
       />
 
       {failedCount > 0 && (
-        <div className="flex items-start gap-2 rounded-md border border-rose-500/30 bg-rose-500/5 p-3 text-xs text-rose-700 dark:text-rose-300">
+        <div className="flex items-start gap-2 rounded-2xl border border-primary/30 bg-accent/50 p-3.5 text-xs font-semibold text-primary">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
           <p>
             <span className="font-medium">{failedCount}</span> message
@@ -175,7 +173,7 @@ export function WhatsAppView() {
           }
         />
       ) : (
-        <Card>
+        <Card className="overflow-hidden py-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -193,7 +191,7 @@ export function WhatsAppView() {
                 <TableRow key={m.id}>
                   <TableCell>
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="grid place-items-center h-7 w-7 rounded-md bg-brand-gradient/10 text-primary shrink-0">
+                      <span className="grid place-items-center h-9 w-9 rounded-full bg-secondary text-primary shrink-0">
                         <MessageCircle className="h-3.5 w-3.5" />
                       </span>
                       <div className="flex flex-col min-w-0">
@@ -234,7 +232,7 @@ export function WhatsAppView() {
                   <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
                     {istDateTime(m.sentAt)}
                   </TableCell>
-                  <TableCell className="hidden xl:table-cell text-xs text-rose-700 dark:text-rose-300">
+                  <TableCell className="hidden xl:table-cell text-xs text-primary">
                     {m.errorCode || m.errorMessage ? (
                       <div className="flex flex-col">
                         {m.errorCode && <span className="font-mono">{m.errorCode}</span>}

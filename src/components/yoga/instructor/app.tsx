@@ -1,4 +1,5 @@
 "use client";
+import { APP_NAME } from "@/lib/brand";
 import { AppShell, useMe } from "@/components/yoga/app-shell";
 import { useApp, View } from "@/lib/store";
 import { ViewTransition } from "@/components/yoga/view-transition";
@@ -42,7 +43,7 @@ export function InstructorApp() {
   const { view } = useApp();
 
   return (
-    <AppShell brand="Prana Live Yoga" role="INSTRUCTOR" navItems={navItems}>
+    <AppShell brand={APP_NAME} role="INSTRUCTOR" navItems={navItems}>
       <ViewTransition view={view}>
         {view === "instructor-dashboard" && <DashboardView />}
         {view === "instructor-roster" && <RosterView />}

@@ -10,8 +10,19 @@ import {
   Star,
   Target,
   Award,
-  Lock,
 } from "lucide-react";
+import { BadgeEmblem, type EmblemKind } from "@/components/yoga/art/sunrise";
+
+const EMBLEM: Record<string, EmblemKind> = {
+  "first-class": "lotus",
+  "streak-3": "flame",
+  "streak-7": "sun",
+  "total-10": "rings",
+  "streak-14": "flame",
+  "total-30": "bloom",
+  "streak-30": "sun",
+  "total-100": "star",
+};
 
 type AttendanceSummary = {
   currentStreak: number;
@@ -131,68 +142,63 @@ export function BadgesCard() {
   const a = q.data;
 
   return (
-    <Card className="border-border/60">
+    <Card className="rounded-[2rem] border-0 shadow-soft">
       <CardContent className="p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-brand-gradient/10 grid place-items-center">
+            <div className="h-9 w-9 rounded-full bg-secondary grid place-items-center">
               <Award className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Milestones
+              <p className="font-display text-lg font-semibold">
+                Badges
               </p>
-              <p className="text-sm font-medium">
+              <p className="text-sm font-semibold text-muted-foreground">
                 {MILESTONES.filter((m) => isUnlocked(m, a)).length} / {MILESTONES.length} unlocked
               </p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 min-[420px]:grid-cols-3 sm:grid-cols-4 gap-3">
           {MILESTONES.map((m) => {
             const unlocked = isUnlocked(m, a);
             const progress = getProgress(m, a);
             return (
               <div
                 key={m.id}
-                className={`relative rounded-xl border p-3 text-center transition ${
-                  unlocked
-                    ? "border-transparent bg-gradient-to-br " + m.gradient + " text-white shadow-md"
-                    : "border-border bg-muted/30"
+                className={`relative rounded-3xl p-3 text-center transition ${
+                  unlocked ? "bg-card shadow-soft" : "bg-[#F8E6D3] dark:bg-muted"
                 }`}
               >
                 <div className="flex justify-center mb-1.5">
-                  {unlocked ? (
-                    <m.icon className="h-6 w-6" />
-                  ) : (
-                    <Lock className="h-5 w-5 text-muted-foreground/50" />
-                  )}
+                  <BadgeEmblem kind={EMBLEM[m.id] ?? "lotus"} earned={unlocked} size={60} />
                 </div>
+                <p className="text-sm font-extrabold leading-tight">{m.label}</p>
                 <p
-                  className={`text-xs font-semibold truncate ${
-                    unlocked ? "" : "text-muted-foreground"
+                  className={`text-xs font-bold mt-0.5 ${
+                    unlocked ? "text-[#2F5A36] dark:text-emerald-300" : "text-muted-foreground"
                   }`}
                 >
-                  {m.label}
-                </p>
-                <p
-                  className={`text-[10px] mt-0.5 ${
-                    unlocked ? "text-white/80" : "text-muted-foreground/70"
-                  }`}
-                >
-                  {m.desc}
+                  {unlocked ? "Earned" : m.desc}
                 </p>
                 {!unlocked && progress > 0 && (
-                  <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="mt-1.5 h-1.5 rounded-full bg-[#3B1F1A]/10 overflow-hidden"
+                    role="progressbar"
+                    aria-label={`${m.label} progress`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(progress * 100)}
+                  >
                     <div
-                      className="h-full bg-brand-gradient rounded-full transition-all"
+                      className="h-full bg-primary rounded-full transition-all"
                       style={{ width: `${Math.min(100, progress * 100)}%` }}
                     />
                   </div>
                 )}
                 {!unlocked && progress > 0 && (
-                  <p className="text-[9px] text-muted-foreground mt-1">
+                  <p className="text-xs font-semibold text-muted-foreground mt-1">
                     {Math.round(progress * 100)}% there
                   </p>
                 )}

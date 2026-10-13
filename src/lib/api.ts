@@ -49,6 +49,13 @@ export async function run<T>(
     if (code === "UNAUTHORIZED") return unauthorized();
     if (code === "FORBIDDEN") return forbidden();
     if (e instanceof ZodError) return fromZodError(e);
+    if (e instanceof Error && e.name === "PaymentsUnavailableError") {
+      return fail("Payments are temporarily unavailable", 503, { code: "PAYMENTS_UNAVAILABLE" });
+    }
+    if (e instanceof Error && e.name === "SubscriptionError") {
+      const err = e as Error & { code?: string; status?: number };
+      return fail(err.message, err.status ?? 409, { code: err.code ?? "SUBSCRIPTION" });
+    }
     console.error("[api] error", e);
     return fail(
       e instanceof Error ? e.message : "Internal server error",

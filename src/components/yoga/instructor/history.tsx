@@ -26,6 +26,8 @@ import {
   ClassStatusBadge,
   EmptyState,
   ErrorCard,
+  StatusChip,
+  PageHeading,
 } from "./shared";
 import {
   prettyDate,
@@ -92,36 +94,25 @@ export function HistoryView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Class history
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Most recent {items.length} past {items.length === 1 ? "class" : "classes"} · IST
-          </p>
-        </div>
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <PageHeading
+          eyebrow="Teaching"
+          title="Class history"
+          subtitle={
+            <>
+              Most recent {items.length} past {items.length === 1 ? "class" : "classes"} · IST
+            </>
+          }
+        />
         <div className="flex items-center gap-2 flex-wrap">
-          <SummaryPill
-            label="Completed"
-            value={completed}
-            className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-          />
-          <SummaryPill
-            label="Cancelled"
-            value={cancelled}
-            className="bg-muted text-muted-foreground"
-          />
-          <SummaryPill
-            label="Failed"
-            value={failed}
-            className="bg-rose-500/10 text-rose-700 dark:text-rose-300"
-          />
+          <SummaryPill label="Completed" value={completed} tone="sage" />
+          <SummaryPill label="Cancelled" value={cancelled} tone="neutral" />
+          <SummaryPill label="Failed" value={failed} tone="terracotta" />
         </div>
       </div>
 
       {/* Desktop table */}
-      <Card className="hidden md:block">
+      <Card className="hidden md:block py-2 overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -158,7 +149,7 @@ export function HistoryView() {
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="font-semibold truncate">
+                  <p className="font-bold truncate">
                     {c.scheduleName}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -173,7 +164,6 @@ export function HistoryView() {
                 </span>
                 {c.meetUrl ? (
                   <Button
-                    size="sm"
                     variant="outline"
                     onClick={() =>
                       window.open(c.meetUrl!, "_blank", "noopener,noreferrer")
@@ -208,7 +198,7 @@ function HistoryRow({
     <>
       <TableRow
         onClick={onToggle}
-        className="cursor-pointer hover:bg-accent/30"
+        className="cursor-pointer hover:bg-accent/40 border-dotted border-border"
       >
         <TableCell className="pl-3">
           {isOpen ? (
@@ -219,7 +209,7 @@ function HistoryRow({
         </TableCell>
         <TableCell>
           <div className="flex flex-col">
-            <span className="font-medium">{shortDate(c.date)}</span>
+            <span className="font-bold">{shortDate(c.date)}</span>
             <span className="text-xs text-muted-foreground">
               {prettyDate(c.date)}
             </span>
@@ -235,9 +225,8 @@ function HistoryRow({
         <TableCell className="text-right">
           {c.meetUrl ? (
             <Button
-              size="sm"
               variant="ghost"
-              className="text-emerald-700 dark:text-emerald-300 hover:text-emerald-800 dark:hover:text-emerald-200"
+              className="text-primary hover:text-primary"
               onClick={(e) => {
                 e.stopPropagation();
                 window.open(c.meetUrl!, "_blank", "noopener,noreferrer");
@@ -253,7 +242,7 @@ function HistoryRow({
         </TableCell>
       </TableRow>
       {isOpen && (
-        <TableRow className="bg-secondary/20 hover:bg-secondary/20">
+        <TableRow className="bg-secondary/40 hover:bg-secondary/40">
           <TableCell />
           <TableCell colSpan={5} className="py-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -328,7 +317,7 @@ function KVPair({
   return (
     <div className="flex items-start justify-between gap-3 min-w-0">
       <span className="text-muted-foreground shrink-0">{label}</span>
-      <span className="font-medium text-right break-words min-w-0">
+      <span className="font-bold text-right break-words min-w-0">
         {children}
       </span>
     </div>
@@ -338,19 +327,17 @@ function KVPair({
 function SummaryPill({
   label,
   value,
-  className,
+  tone,
 }: {
   label: string;
   value: number;
-  className?: string;
+  tone: "sage" | "neutral" | "terracotta";
 }) {
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${className ?? ""}`}
-    >
+    <StatusChip tone={tone}>
       {label}
-      <span className="font-bold">{value}</span>
-    </span>
+      <span className="font-display text-sm font-bold">{value}</span>
+    </StatusChip>
   );
 }
 

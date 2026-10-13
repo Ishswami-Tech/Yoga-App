@@ -71,8 +71,11 @@ import {
   ErrorCard,
   EmptyState,
   Spinner,
+  FilterChip,
+  TH_CLASS,
   istDate,
 } from "./shared";
+import { InitialsDot, InstructorRings } from "@/components/yoga/art/admin-art";
 import { UserDetailDrawer } from "./user-detail-drawer";
 
 type AdminUser = {
@@ -110,6 +113,7 @@ export function UsersView({
   const [deletingId, setDeletingId] = useState<AdminUser | null>(null);
   const [addKey, setAddKey] = useState(0);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"ALL" | "ACTIVE" | "NONE" | "DISABLED">("ALL");
 
   // Debounce search.
   const onSearch = (val: string) => {
@@ -140,10 +144,9 @@ export function UsersView({
     mutationFn: (body: {
       name: string;
       email: string;
-      password: string;
       role: "STUDENT" | "INSTRUCTOR" | "ADMIN";
       phone?: string;
-      whatsappNumber?: string;
+      whatsappNumber: string;
     }) => apiPost("/api/admin/users", body),
     onSuccess: () => {
       toast.success(`${singularLabel} created`, {
@@ -182,16 +185,83 @@ export function UsersView({
       toast.error("Couldn't delete user", { description: e.message }),
   });
 
+  const items = list.data?.items ?? [];
+  const shown = items.filter((u) =>
+    filter === "ALL"
+      ? true
+      : filter === "ACTIVE"
+      ? u.status === "ACTIVE" && u.membershipStatus === "ACTIVE"
+      : filter === "NONE"
+      ? u.status === "ACTIVE" && u.membershipStatus !== "ACTIVE"
+      : u.status === "DISABLED"
+  );
+  const count = (f: typeof filter) =>
+    items.filter((u) =>
+      f === "ALL"
+        ? true
+        : f === "ACTIVE"
+        ? u.status === "ACTIVE" && u.membershipStatus === "ACTIVE"
+        : f === "NONE"
+        ? u.status === "ACTIVE" && u.membershipStatus !== "ACTIVE"
+        : u.status === "DISABLED"
+    ).length;
+
+  const actionsMenu = (u: AdminUser) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="icon" aria-label={`Actions for ${u.name}`}>
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>
+          <div className="flex flex-col">
+            <span className="font-extrabold truncate">{u.name}</span>
+            <span className="text-xs text-muted-foreground truncate">{u.email}</span>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => setDetailId(u.id)}>
+          <Eye className="h-4 w-4" /> View details
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setEditing(u)}>
+          <Pencil className="h-4 w-4" /> Edit profile
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled>
+          <UserCog className="h-4 w-4" /> Role: {u.role}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {u.status === "ACTIVE" ? (
+          <DropdownMenuItem
+            onClick={() => updateMut.mutate({ id: u.id, body: { status: "DISABLED" } })}
+          >
+            <ShieldBan className="h-4 w-4" /> Disable account
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem
+            onClick={() => updateMut.mutate({ id: u.id, body: { status: "ACTIVE" } })}
+          >
+            <ShieldCheck className="h-4 w-4" /> Reactivate
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={() => setDeletingId(u)}>
+          <Trash2 className="h-4 w-4" /> Delete user
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader
+        eyebrow={`People · ${items.length} ${singularLabel.toLowerCase()}${items.length === 1 ? "" : "s"}`}
         title={title}
         description={description}
         actions={
           <>
             <Button
               variant="outline"
-              size="sm"
               onClick={() =>
                 qc.invalidateQueries({ queryKey: ["admin", "users", role] })
               }
@@ -201,7 +271,6 @@ export function UsersView({
             {role === "STUDENT" && (
               <Button
                 variant="outline"
-                size="sm"
                 onClick={() => {
                   window.open("/api/admin/students/export", "_blank", "noopener,noreferrer");
                   toast.success("Downloading students CSV");
@@ -211,7 +280,6 @@ export function UsersView({
               </Button>
             )}
             <Button
-              size="sm"
               onClick={() => {
                 setAddKey((k) => k + 1);
                 setAddOpen(true);
@@ -223,31 +291,53 @@ export function UsersView({
         }
       />
 
-      <Card>
-        <CardContent className="p-3 md:p-4">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-8"
-                placeholder={`Search ${singularLabel.toLowerCase()}s by name, email, phone…`}
-                value={q}
-                onChange={(e) => onSearch(e.target.value)}
-              />
-            </div>
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
-              {icon}
-              {list.data?.items.length ?? 0} of 200 max
-            </div>
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex-1 basis-72 max-w-md">
+          <Label
+            htmlFor={`admin-search-${role.toLowerCase()}`}
+            className="mb-1.5 block text-sm font-extrabold"
+          >
+            Search {singularLabel.toLowerCase()}s by name, email or phone
+          </Label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id={`admin-search-${role.toLowerCase()}`}
+              type="search"
+              className="h-14 rounded-2xl border-2 bg-card pl-11 text-base font-bold"
+              placeholder={`Search ${singularLabel.toLowerCase()}s by name, email, phone…`}
+              value={q}
+              onChange={(e) => onSearch(e.target.value)}
+            />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        {role === "STUDENT" && (
+          <div role="group" aria-label="Filter by membership" className="flex flex-wrap gap-2">
+            <FilterChip active={filter === "ALL"} onClick={() => setFilter("ALL")} count={count("ALL")}>
+              All
+            </FilterChip>
+            <FilterChip active={filter === "ACTIVE"} onClick={() => setFilter("ACTIVE")} count={count("ACTIVE")}>
+              Active
+            </FilterChip>
+            <FilterChip active={filter === "NONE"} onClick={() => setFilter("NONE")} count={count("NONE")}>
+              No membership
+            </FilterChip>
+            <FilterChip active={filter === "DISABLED"} onClick={() => setFilter("DISABLED")} count={count("DISABLED")}>
+              Disabled
+            </FilterChip>
+          </div>
+        )}
+        <div className="hidden sm:flex min-h-11 items-center gap-1.5 text-sm font-semibold text-muted-foreground">
+          {icon}
+          {list.data?.items.length ?? 0} of 200 max
+        </div>
+      </div>
 
       {list.isLoading ? (
         <Card>
           <CardContent className="p-4 space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
+              <Skeleton key={i} className="h-12 w-full rounded-full" />
             ))}
           </CardContent>
         </Card>
@@ -256,25 +346,24 @@ export function UsersView({
           message={(list.error as ApiError)?.message ?? "Couldn't load users."}
           onRetry={() => qc.invalidateQueries({ queryKey })}
         />
-      ) : (list.data?.items.length ?? 0) === 0 ? (
+      ) : shown.length === 0 ? (
         <EmptyState
           icon={role === "INSTRUCTOR" ? GraduationCap : Users}
           title={
-            debouncedQ
+            debouncedQ || filter !== "ALL"
               ? `No ${role.toLowerCase()}s match your search`
               : `No ${role.toLowerCase()}s yet`
           }
           description={
-            debouncedQ
-              ? "Try a different name, email, or phone number."
+            debouncedQ || filter !== "ALL"
+              ? "Try a different name, email, phone number or filter."
               : `Add your first ${singularLabel.toLowerCase()} to start scheduling classes${
                   role === "INSTRUCTOR" ? " and assigning schedules" : ""
                 }.`
           }
           action={
-            !debouncedQ ? (
+            !debouncedQ && filter === "ALL" ? (
               <Button
-                size="sm"
                 onClick={() => {
                   setAddKey((k) => k + 1);
                   setAddOpen(true);
@@ -285,135 +374,130 @@ export function UsersView({
             ) : undefined
           }
         />
+      ) : role === "INSTRUCTOR" ? (
+        <section
+          aria-label="Instructor cards"
+          className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))] gap-5"
+        >
+          {shown.map((u) => (
+            <article
+              key={u.id}
+              className={`relative overflow-hidden rounded-3xl p-6 shadow-soft ${
+                u.status === "ACTIVE"
+                  ? "bg-card border border-border/50"
+                  : "bg-[#FFF0DA] dark:bg-muted"
+              }`}
+            >
+              <InstructorRings className="pointer-events-none absolute -right-11 -top-11" />
+              <div className="relative flex items-center gap-4">
+                <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-[#F5A623] font-display text-2xl font-bold text-[#3B1F1A]">
+                  {(u.name[0] ?? "?").toUpperCase()}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate font-display text-[26px] font-semibold leading-tight">{u.name}</p>
+                  <p className="truncate text-[15px] font-bold text-muted-foreground">
+                    {u.whatsappNumber ?? u.phone ?? u.email}
+                  </p>
+                </div>
+                <span className="relative ml-auto self-start">
+                  <StatusBadge status={u.status} />
+                </span>
+              </div>
+              <dl className="relative mt-5 grid grid-cols-1 gap-3 border-t-2 border-dotted border-border pt-4 text-[15px]">
+                <div className="flex justify-between gap-3">
+                  <dt className="font-semibold text-muted-foreground">Email</dt>
+                  <dd className="truncate font-bold">{u.email}</dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="font-semibold text-muted-foreground">Joined</dt>
+                  <dd className="font-bold">{istDate(u.createdAt)}</dd>
+                </div>
+              </dl>
+              <div className="relative mt-5 flex flex-wrap gap-3">
+                <Button variant="outline" onClick={() => setDetailId(u.id)}>
+                  <Eye className="h-4 w-4" /> View details
+                </Button>
+                <Button variant="outline" onClick={() => setEditing(u)}>
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+                {actionsMenu(u)}
+              </div>
+            </article>
+          ))}
+        </section>
       ) : (
-        <Card>
+        <Card className="gap-0 overflow-hidden py-0">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead className="hidden md:table-cell">Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="hidden lg:table-cell">WhatsApp</TableHead>
-                {role === "STUDENT" && (
-                  <TableHead className="hidden md:table-cell">
-                    Membership
-                  </TableHead>
-                )}
-                <TableHead className="hidden lg:table-cell">Joined</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+              <TableRow className="border-0 hover:bg-transparent">
+                <TableHead className={TH_CLASS}>Student</TableHead>
+                <TableHead className={`hidden md:table-cell ${TH_CLASS}`}>Role</TableHead>
+                <TableHead className={TH_CLASS}>Status</TableHead>
+                <TableHead className={`hidden lg:table-cell ${TH_CLASS}`}>WhatsApp</TableHead>
+                <TableHead className={`hidden md:table-cell ${TH_CLASS}`}>Membership</TableHead>
+                <TableHead className={`hidden lg:table-cell ${TH_CLASS}`}>Joined</TableHead>
+                <TableHead className={`text-right ${TH_CLASS}`}>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {list.data!.items.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{u.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {u.email}
-                      </span>
-                      {u.phone && (
-                        <span className="text-[11px] text-muted-foreground">
-                          📞 {u.phone}
+              {shown.map((u) => (
+                <TableRow
+                  key={u.id}
+                  className={`border-t-2 border-dotted border-border border-b-0 ${
+                    u.status === "DISABLED" ? "bg-secondary/40" : ""
+                  }`}
+                >
+                  <TableCell className="px-4 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <InitialsDot name={u.name} size={40} />
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate font-extrabold">{u.name}</span>
+                        <span className="truncate text-sm font-semibold text-muted-foreground">
+                          {u.email}
+                        </span>
+                        {u.phone && (
+                          <span className="text-sm font-semibold text-muted-foreground">
+                            {u.phone}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell px-4">
+                    <RoleBadge role={u.role} />
+                  </TableCell>
+                  <TableCell className="px-4">
+                    <StatusBadge status={u.status} />
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell px-4">
+                    {u.whatsappNumber ? (
+                      <span className="text-sm font-semibold">{u.whatsappNumber}</span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell px-4">
+                    <div className="flex flex-col items-start gap-1">
+                      <StatusBadge status={u.membershipStatus} />
+                      {u.membershipEnd && (
+                        <span className="text-sm font-semibold text-muted-foreground">
+                          until {istDate(u.membershipEnd)}
                         </span>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <RoleBadge role={u.role} />
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={u.status} />
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    {u.whatsappNumber ? (
-                      <span className="text-sm">{u.whatsappNumber}</span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  {role === "STUDENT" && (
-                    <TableCell className="hidden md:table-cell">
-                      <div className="flex flex-col gap-1">
-                        <StatusBadge status={u.membershipStatus} />
-                        {u.membershipEnd && (
-                          <span className="text-[11px] text-muted-foreground">
-                            until {istDate(u.membershipEnd)}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                  )}
-                  <TableCell className="hidden lg:table-cell">
-                    <span className="text-sm text-muted-foreground">
+                  <TableCell className="hidden lg:table-cell px-4">
+                    <span className="text-sm font-semibold text-muted-foreground">
                       {istDate(u.createdAt)}
                     </span>
                   </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="User actions"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-52">
-                        <DropdownMenuLabel>
-                          <div className="flex flex-col">
-                            <span className="font-medium truncate">
-                              {u.name}
-                            </span>
-                            <span className="text-xs text-muted-foreground truncate">
-                              {u.email}
-                            </span>
-                          </div>
-                        </DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setDetailId(u.id)}>
-                          <Eye className="h-4 w-4" /> View details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setEditing(u)}>
-                          <Pencil className="h-4 w-4" /> Edit profile
-                        </DropdownMenuItem>
-                        <DropdownMenuItem disabled>
-                          <UserCog className="h-4 w-4" /> Role: {u.role}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {u.status === "ACTIVE" ? (
-                          <DropdownMenuItem
-                            onClick={() =>
-                              updateMut.mutate({
-                                id: u.id,
-                                body: { status: "DISABLED" },
-                              })
-                            }
-                          >
-                            <ShieldBan className="h-4 w-4" /> Disable account
-                          </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem
-                            onClick={() =>
-                              updateMut.mutate({
-                                id: u.id,
-                                body: { status: "ACTIVE" },
-                              })
-                            }
-                          >
-                            <ShieldCheck className="h-4 w-4" /> Reactivate
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={() => setDeletingId(u)}
-                        >
-                          <Trash2 className="h-4 w-4" /> Delete user
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                  <TableCell className="px-4 text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" className="hidden sm:inline-flex h-11" onClick={() => setDetailId(u.id)}>
+                        View
+                      </Button>
+                      {actionsMenu(u)}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -429,8 +513,8 @@ export function UsersView({
           <DialogHeader>
             <DialogTitle>Add new user</DialogTitle>
             <DialogDescription>
-              Provision a new account. The user will sign in with this email
-              and password.
+              Provision a new account. The user signs in with a one-time code
+              sent to their WhatsApp number.
             </DialogDescription>
           </DialogHeader>
           <CreateUserForm
@@ -453,8 +537,8 @@ export function UsersView({
           <DialogHeader>
             <DialogTitle>Edit {editing?.name ?? "user"}</DialogTitle>
             <DialogDescription>
-              Update role, status, or contact details. Users manage their own
-              passwords.
+              Update role, status, or contact details. Changing the WhatsApp number
+              changes where sign-in codes are sent.
             </DialogDescription>
           </DialogHeader>
           {editing && (
@@ -525,16 +609,14 @@ function CreateUserForm({
   onSubmit: (body: {
     name: string;
     email: string;
-    password: string;
     role: "STUDENT" | "INSTRUCTOR" | "ADMIN";
     phone?: string;
-    whatsappNumber?: string;
+    whatsappNumber: string;
   }) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [role, setRole] = useState<"STUDENT" | "INSTRUCTOR" | "ADMIN">(
     defaultRole
   );
@@ -544,7 +626,7 @@ function CreateUserForm({
   const valid =
     name.trim().length >= 2 &&
     /\S+@\S+\.\S+/.test(email) &&
-    password.length >= 6;
+    whatsapp.replace(/\D/g, "").length >= 10;
 
   return (
     <>
@@ -562,15 +644,7 @@ function CreateUserForm({
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="priya@yoga.demo"
-          />
-        </Field>
-        <Field label="Password" hint="Min 6 characters">
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
+            placeholder="name@example.com"
           />
         </Field>
         <Field label="Role">
@@ -598,7 +672,7 @@ function CreateUserForm({
               placeholder="+91 98765 43210"
             />
           </Field>
-          <Field label="WhatsApp (optional)">
+          <Field label="WhatsApp (sign-in)">
             <Input
               value={whatsapp}
               onChange={(e) => setWhatsapp(e.target.value)}
@@ -617,10 +691,9 @@ function CreateUserForm({
             onSubmit({
               name: name.trim(),
               email: email.trim(),
-              password,
               role,
               phone: phone.trim() || undefined,
-              whatsappNumber: whatsapp.trim() || undefined,
+              whatsappNumber: whatsapp.trim(),
             })
           }
         >
@@ -749,9 +822,9 @@ function Field({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <Label className="text-xs">{label}</Label>
+        <Label className="text-sm font-extrabold">{label}</Label>
         {hint && (
-          <span className="text-[10px] text-muted-foreground">{hint}</span>
+          <span className="text-xs font-semibold text-muted-foreground">{hint}</span>
         )}
       </div>
       {children}

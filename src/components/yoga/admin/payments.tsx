@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -14,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RefreshCw, IndianRupee, Search, Receipt, Inbox } from "lucide-react";
+import { RefreshCw, Search, Inbox } from "lucide-react";
 import { formatINR } from "@/components/yoga/student/format";
 import {
   PageHeader,
@@ -22,9 +23,13 @@ import {
   ErrorCard,
   EmptyState,
   MonoText,
+  KpiTile,
+  FilterChip,
+  TH_CLASS,
   istDate,
   istDateTime,
 } from "./shared";
+import { InitialsDot } from "@/components/yoga/art/admin-art";
 
 type Payment = {
   id: string;
@@ -46,6 +51,7 @@ type ListResp = { items: Payment[] };
 export function PaymentsView() {
   const [filterUser, setFilterUser] = useState("");
   const [debouncedUser, setDebouncedUser] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const qc = useQueryClient();
 
   // Debounce user filter.
@@ -87,15 +93,18 @@ export function PaymentsView() {
     return { captured, fees, pending, failed };
   }, [items]);
 
+  const shown = items.filter((p) => statusFilter === "ALL" || p.status === statusFilter);
+  const STATUS_CHIPS = ["ALL", "CAPTURED", "PENDING", "FAILED", "REFUNDED"];
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader
+        eyebrow="Money"
         title="Payments"
         description="Every Razorpay payment captured by the verified webhook."
         actions={
           <Button
             variant="outline"
-            size="sm"
             onClick={() => qc.invalidateQueries({ queryKey: ["admin", "payments"] })}
           >
             <RefreshCw className="h-4 w-4" /> Refresh
@@ -103,59 +112,49 @@ export function PaymentsView() {
         }
       />
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <SummaryCard
-          label="Captured revenue"
-          value={formatINR(summary.captured)}
-          icon={<IndianRupee className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />}
-          tone="emerald"
-        />
-        <SummaryCard
-          label="Gateway fees"
-          value={formatINR(summary.fees)}
-          icon={<Receipt className="h-4 w-4 text-amber-700 dark:text-amber-300" />}
-          tone="amber"
-        />
-        <SummaryCard
-          label="Pending"
-          value={formatINR(summary.pending)}
-          icon={<Receipt className="h-4 w-4 text-muted-foreground" />}
-          tone="muted"
-        />
-        <SummaryCard
-          label="Failed"
-          value={formatINR(summary.failed)}
-          icon={<Receipt className="h-4 w-4 text-rose-700 dark:text-rose-300" />}
-          tone="rose"
-        />
-      </div>
+      {/* Summary tiles */}
+      <section aria-label="Revenue summary" className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-4">
+        <KpiTile tone="dark" label="Captured revenue" value={formatINR(summary.captured)} />
+        <KpiTile label="Gateway fees" value={formatINR(summary.fees)} hint="fee + surcharge + GST" />
+        <KpiTile tone="wait" label="Pending" value={formatINR(summary.pending)} />
+        <KpiTile tone="bad" label="Failed" value={formatINR(summary.failed)} />
+      </section>
 
       {/* Filter bar */}
-      <Card>
-        <CardContent className="p-3 md:p-4">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-8"
-                placeholder="Filter by user ID (e.g. usr_abc123)…"
-                value={filterUser}
-                onChange={(e) => onSearch(e.target.value)}
-              />
-            </div>
-            <span className="hidden sm:inline text-xs text-muted-foreground">
-              {items.length} of 200 max
-            </span>
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex-1 basis-72 max-w-md">
+          <Label htmlFor="admin-payments-search" className="mb-1.5 block text-sm font-extrabold">
+            Filter by user ID
+          </Label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="admin-payments-search"
+              type="search"
+              className="h-14 rounded-2xl border-2 bg-card pl-11 text-base font-bold"
+              placeholder="e.g. usr_abc123"
+              value={filterUser}
+              onChange={(e) => onSearch(e.target.value)}
+            />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <div role="group" aria-label="Filter by status" className="flex flex-wrap gap-2">
+          {STATUS_CHIPS.map((st) => (
+            <FilterChip key={st} active={statusFilter === st} onClick={() => setStatusFilter(st)}>
+              {st === "ALL" ? "All" : st.charAt(0) + st.slice(1).toLowerCase()}
+            </FilterChip>
+          ))}
+        </div>
+        <span className="hidden sm:inline min-h-11 leading-[44px] text-sm font-semibold text-muted-foreground">
+          {items.length} of 200 max
+        </span>
+      </div>
 
       {q.isLoading ? (
         <Card>
           <CardContent className="p-4 space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
+              <Skeleton key={i} className="h-12 w-full rounded-full" />
             ))}
           </CardContent>
         </Card>
@@ -164,7 +163,7 @@ export function PaymentsView() {
           message={(q.error as ApiError)?.message ?? "Couldn't load payments."}
           onRetry={() => qc.invalidateQueries({ queryKey: ["admin", "payments", debouncedUser] })}
         />
-      ) : items.length === 0 ? (
+      ) : shown.length === 0 ? (
         <EmptyState
           icon={Inbox}
           title="No payments yet"
@@ -175,53 +174,53 @@ export function PaymentsView() {
           }
         />
       ) : (
-        <Card>
+        <Card className="gap-0 overflow-hidden py-0">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Payment ID</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="hidden md:table-cell">Gateway fee</TableHead>
-                <TableHead className="hidden lg:table-cell">Paid at</TableHead>
-                <TableHead className="hidden lg:table-cell">Created</TableHead>
+              <TableRow className="border-0 hover:bg-transparent">
+                <TableHead className={TH_CLASS}>Student</TableHead>
+                <TableHead className={TH_CLASS}>Payment ID</TableHead>
+                <TableHead className={`text-right ${TH_CLASS}`}>Amount</TableHead>
+                <TableHead className={TH_CLASS}>Status</TableHead>
+                <TableHead className={`hidden md:table-cell text-right ${TH_CLASS}`}>Gateway fee</TableHead>
+                <TableHead className={`hidden lg:table-cell ${TH_CLASS}`}>Paid at</TableHead>
+                <TableHead className={`hidden lg:table-cell ${TH_CLASS}`}>Created</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{p.userName ?? "—"}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {p.userEmail ?? ""}
-                      </span>
+              {shown.map((p) => (
+                <TableRow key={p.id} className="border-t-2 border-dotted border-border border-b-0">
+                  <TableCell className="px-4 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <InitialsDot name={p.userName ?? "?"} />
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate font-extrabold">{p.userName ?? "—"}</span>
+                        <span className="truncate text-sm font-semibold text-muted-foreground">
+                          {p.userEmail ?? ""}
+                        </span>
+                      </div>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-4">
                     <MonoText>{p.razorpayPaymentId || "—"}</MonoText>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1 font-medium">
-                      <IndianRupee className="h-3 w-3 text-muted-foreground" />
-                      {formatINR(p.amount).replace("₹", "")}
-                    </div>
+                  <TableCell className="px-4 text-right">
+                    <span className="font-display text-lg font-bold">{formatINR(p.amount)}</span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-4">
                     <StatusBadge status={p.status} />
                   </TableCell>
-                  <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                  <TableCell className="hidden md:table-cell px-4 text-right text-sm font-semibold text-muted-foreground">
                     {formatINR(
                       (p.gatewayFee ?? 0) +
                         (p.surcharge ?? 0) +
                         (p.surchargeGst ?? 0)
                     )}
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                  <TableCell className="hidden lg:table-cell px-4 text-sm font-semibold text-muted-foreground">
                     {istDateTime(p.paidAt)}
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                  <TableCell className="hidden lg:table-cell px-4 text-sm font-semibold text-muted-foreground">
                     {istDate(p.createdAt)}
                   </TableCell>
                 </TableRow>
@@ -231,41 +230,5 @@ export function PaymentsView() {
         </Card>
       )}
     </div>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  icon: React.ReactNode;
-  tone: "emerald" | "amber" | "muted" | "rose";
-}) {
-  const toneClass =
-    tone === "emerald"
-      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-      : tone === "amber"
-      ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
-      : tone === "rose"
-      ? "bg-rose-500/10 text-rose-700 dark:text-rose-300"
-      : "bg-muted text-muted-foreground";
-  return (
-    <Card className="border-border/60">
-      <CardContent className="p-4 flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            {label}
-          </span>
-          <span className={`grid place-items-center h-7 w-7 rounded-md ${toneClass}`}>
-            {icon}
-          </span>
-        </div>
-        <p className="text-xl font-bold tracking-tight">{value}</p>
-      </CardContent>
-    </Card>
   );
 }

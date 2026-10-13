@@ -21,6 +21,16 @@ import {
 } from "lucide-react";
 import { ErrorCard, EmptyState } from "./shared";
 import { prettyDate, prettyTime, shortDate } from "./format";
+import { SunFan } from "../art/sunrise";
+
+function dayParts(date: string) {
+  const d = new Date(`${date.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return { wd: "", day: "" };
+  return {
+    wd: d.toLocaleDateString("en-IN", { weekday: "short", timeZone: "UTC" }),
+    day: String(d.getUTCDate()),
+  };
+}
 
 type Item = {
   id: string;
@@ -66,21 +76,28 @@ export function UpcomingView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Upcoming classes</h1>
-          <p className="text-sm text-muted-foreground">
-            Next {q.data.days} days · times in IST
-          </p>
+      <header className="relative overflow-hidden rounded-3xl bg-sunrise-sky px-5 pb-4 pt-4 text-[#3B1F1A] shadow-lift">
+        <SunFan
+          size={200}
+          className="pointer-events-none absolute -right-14 -top-20"
+        />
+        <div className="relative flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center rounded-full bg-card px-3 py-1 text-[12.5px] font-extrabold uppercase tracking-wide">
+            Next {q.data.days} days
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-card px-3 py-1 text-[12.5px] font-extrabold">
+            <CalendarClock className="h-3.5 w-3.5" /> {q.data.items.length} class
+            {q.data.items.length === 1 ? "" : "es"}
+          </span>
         </div>
-        <Badge variant="secondary" className="gap-1">
-          <CalendarClock className="h-3.5 w-3.5" /> {q.data.items.length} class
-          {q.data.items.length === 1 ? "" : "es"}
-        </Badge>
-      </div>
+        <h1 className="relative mt-2 font-display text-4xl font-semibold leading-tight">
+          Upcoming
+        </h1>
+        <p className="relative text-sm font-semibold">Times in IST</p>
+      </header>
 
       {/* Desktop table */}
-      <Card className="hidden md:block">
+      <Card className="hidden md:block rounded-3xl shadow-soft overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -96,7 +113,7 @@ export function UpcomingView() {
               <TableRow key={c.id}>
                 <TableCell>
                   <div className="flex flex-col">
-                    <span className="font-medium">
+                    <span className="font-extrabold">
                       {shortDate(c.date)}
                     </span>
                     <span className="text-xs text-muted-foreground">
@@ -123,25 +140,39 @@ export function UpcomingView() {
       </Card>
 
       {/* Mobile cards */}
-      <div className="md:hidden space-y-3">
-        {q.data.items.map((c) => (
-          <Card key={c.id} className="border-border/60">
-            <CardContent className="p-4 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{shortDate(c.date)}</span>
-                  <StatusBadge status={c.status} hasMeet={c.hasMeet} />
+      <div className="md:hidden space-y-2">
+        {q.data.items.map((c, i) => {
+          const { wd, day } = dayParts(c.date);
+          return (
+            <Card key={c.id} className="rounded-3xl shadow-soft">
+              <CardContent className="p-2 pr-3.5 flex items-center gap-3 min-h-16">
+                <div
+                  className={`flex size-[52px] shrink-0 flex-col items-center justify-center rounded-[22px] text-[#3B1F1A] ${
+                    i % 2 === 0 ? "bg-[#F7C9B6]" : "bg-[#FBD79B]"
+                  }`}
+                >
+                  <div className="text-[11.5px] font-extrabold uppercase tracking-wider">{wd}</div>
+                  <div className="font-display text-[22px] font-bold leading-none">{day}</div>
                 </div>
-                <p className="text-sm text-muted-foreground truncate">
-                  {prettyTime(c.startTime)} – {prettyTime(c.endTime)} ·{" "}
-                  {c.scheduleName}
-                </p>
-              </div>
-              <JoinButton item={c} compact />
-            </CardContent>
-          </Card>
-        ))}
+                <div className="min-w-0 flex-1">
+                  <div className="font-extrabold">{c.scheduleName}</div>
+                  <p className="text-[13.5px] font-semibold text-muted-foreground">
+                    {prettyTime(c.startTime)} – {prettyTime(c.endTime)}
+                  </p>
+                  <div className="mt-1">
+                    <StatusBadge status={c.status} hasMeet={c.hasMeet} />
+                  </div>
+                </div>
+                <JoinButton item={c} compact />
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
+
+      <p className="px-2 text-[13.5px] font-semibold text-muted-foreground">
+        WhatsApp reminders with your Meet link arrive 15 minutes before each class.
+      </p>
     </div>
   );
 }
@@ -157,7 +188,7 @@ function StatusBadge({
     return (
       <Badge
         variant="outline"
-        className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+        className="rounded-full border-transparent bg-success-soft px-3 text-success font-extrabold"
       >
         Ready
       </Badge>
@@ -165,7 +196,7 @@ function StatusBadge({
   return (
     <Badge
       variant="outline"
-      className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300"
+      className="rounded-full border-transparent bg-marigold/30 px-3 text-foreground font-extrabold"
     >
       Meet pending
     </Badge>
@@ -176,8 +207,7 @@ function JoinButton({ item, compact }: { item: Item; compact?: boolean }) {
   if (item.canJoin && item.meetUrl) {
     return (
       <Button
-        size={compact ? "sm" : "default"}
-        className="bg-emerald-600 text-white hover:bg-emerald-700"
+        className="min-h-11"
         onClick={() => window.open(item.meetUrl!, "_blank")}
       >
         <Play className="h-4 w-4" /> Join
@@ -187,13 +217,13 @@ function JoinButton({ item, compact }: { item: Item; compact?: boolean }) {
   if (item.canJoin === false && !item.meetUrl) {
     // Inactive membership — show subscribe CTA
     return (
-      <Button size={compact ? "sm" : "default"} variant="outline" disabled>
+      <Button className="min-h-11" variant="outline" disabled>
         <Sparkles className="h-4 w-4" /> Members only
       </Button>
     );
   }
   return (
-    <Button size={compact ? "sm" : "default"} variant="outline" disabled>
+    <Button className="min-h-11" variant="outline" disabled>
       <Video className="h-4 w-4" /> Soon
     </Button>
   );
@@ -204,16 +234,16 @@ function UpcomingSkeleton() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="space-y-2">
-          <div className="h-7 w-44 rounded-md bg-accent animate-pulse" />
-          <div className="h-4 w-32 rounded-md bg-accent animate-pulse" />
+          <div className="h-7 w-44 rounded-2xl bg-accent animate-pulse" />
+          <div className="h-4 w-32 rounded-2xl bg-accent animate-pulse" />
         </div>
       </div>
-      <Card>
+      <Card className="rounded-3xl">
         <div className="p-4 space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
-              className="h-12 w-full rounded-md bg-accent animate-pulse"
+              className="h-12 w-full rounded-2xl bg-accent animate-pulse"
             />
           ))}
         </div>

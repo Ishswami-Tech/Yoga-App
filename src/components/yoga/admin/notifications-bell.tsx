@@ -34,15 +34,15 @@ type NotificationsResp = {
 const SEVERITY_CONFIG = {
   critical: {
     icon: AlertCircle,
-    color: "text-rose-600 dark:text-rose-400",
-    bg: "bg-rose-500/10",
-    border: "border-rose-500/30",
+    color: "text-[#7A2A10] dark:text-[#F7C9B6]",
+    bg: "bg-[#F7C9B6] dark:bg-[#E8792B]/25",
+    border: "border-[#7A2A10]/30",
   },
   warning: {
     icon: AlertTriangle,
-    color: "text-amber-600 dark:text-amber-400",
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/30",
+    color: "text-[#5C3A00] dark:text-[#FBE3B0]",
+    bg: "bg-[#FBE3B0] dark:bg-[#F5A623]/25",
+    border: "border-[#5C3A00]/30",
   },
   info: {
     icon: Info,
@@ -68,17 +68,17 @@ export function NotificationsBell() {
     <Popover>
       <PopoverTrigger asChild>
         <button
-          className="relative h-9 w-9 rounded-lg hover:bg-accent/40 grid place-items-center transition"
+          className="relative size-11 rounded-full hover:bg-accent grid place-items-center transition outline-none focus-visible:ring-[3px] focus-visible:ring-foreground/80"
           aria-label={`Notifications — ${summary.total} items`}
         >
           <Bell className="h-5 w-5" />
           {summary.total > 0 && (
             <span
-              className={`absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 rounded-full text-[10px] font-bold grid place-items-center ${
+              className={`absolute top-0.5 right-0.5 h-5 min-w-5 px-1 rounded-full text-xs font-extrabold grid place-items-center ${
                 summary.critical > 0
-                  ? "bg-rose-500 text-white"
+                  ? "bg-[#7A2A10] text-white"
                   : summary.warning > 0
-                  ? "bg-amber-500 text-white"
+                  ? "bg-[#F5A623] text-[#3B1F1A]"
                   : "bg-primary text-primary-foreground"
               }`}
             >
@@ -87,19 +87,19 @@ export function NotificationsBell() {
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-0">
-        <div className="px-4 py-3 border-b border-border/40">
+      <PopoverContent align="end" className="w-80 overflow-hidden rounded-3xl p-0">
+        <div className="px-5 py-4 border-b-2 border-dotted border-border">
           <div className="flex items-center justify-between">
-            <p className="font-semibold text-sm">Notifications</p>
+            <p className="font-display text-lg font-semibold">Notifications</p>
             {hasItems ? (
               <div className="flex items-center gap-1.5">
                 {summary.critical > 0 && (
-                  <Badge variant="outline" className="border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300 text-[10px]">
+                  <Badge variant="outline" className="border-transparent bg-[#F7C9B6] text-[#7A2A10] text-xs font-extrabold">
                     {summary.critical} critical
                   </Badge>
                 )}
                 {summary.warning > 0 && (
-                  <Badge variant="outline" className="border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[10px]">
+                  <Badge variant="outline" className="border-transparent bg-[#FBE3B0] text-[#5C3A00] text-xs font-extrabold">
                     {summary.warning} warning
                   </Badge>
                 )}
@@ -109,21 +109,21 @@ export function NotificationsBell() {
         </div>
         <div className="max-h-80 overflow-y-auto scroll-soft">
           {q.isLoading ? (
-            <div className="p-6 text-center text-sm text-muted-foreground">
+            <div className="p-6 text-center text-[15px] font-semibold text-muted-foreground">
               Loading…
             </div>
           ) : !hasItems ? (
             <div className="p-8 flex flex-col items-center gap-2 text-center">
-              <div className="h-10 w-10 rounded-full bg-emerald-500/10 grid place-items-center">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              <div className="h-12 w-12 rounded-full bg-[#DCEBD8] grid place-items-center">
+                <CheckCircle2 className="h-6 w-6 text-[#244B2B]" />
               </div>
-              <p className="text-sm font-medium">All clear</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="font-display text-lg font-semibold">All clear</p>
+              <p className="text-sm font-semibold text-muted-foreground">
                 No items need your attention right now.
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-border/40">
+            <div className="divide-y-2 divide-dotted divide-border">
               {items.map((item) => {
                 const cfg = SEVERITY_CONFIG[item.severity];
                 const Icon = cfg.icon;
@@ -131,18 +131,18 @@ export function NotificationsBell() {
                   <button
                     key={item.type}
                     onClick={() => setView(item.link as any)}
-                    className="w-full flex items-start gap-3 p-3 text-left hover:bg-accent/40 transition group"
+                    className="w-full min-h-14 flex items-start gap-3 p-4 text-left hover:bg-accent/50 transition group outline-none focus-visible:bg-accent/50"
                   >
-                    <div className={`h-8 w-8 rounded-lg ${cfg.bg} grid place-items-center shrink-0 mt-0.5`}>
+                    <div className={`h-8 w-8 rounded-full ${cfg.bg} grid place-items-center shrink-0 mt-0.5`}>
                       <Icon className={`h-4 w-4 ${cfg.color}`} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{item.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                      <p className="text-[15px] font-extrabold truncate">{item.title}</p>
+                      <p className="text-sm font-semibold text-muted-foreground mt-0.5 line-clamp-2">
                         {item.description}
                       </p>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-1 group-hover:text-primary transition" />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1 group-hover:text-primary transition" />
                   </button>
                 );
               })}

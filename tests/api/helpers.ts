@@ -1,0 +1,116 @@
+// Shared helpers for API tests. Run against a live server:
+//   BASE_URL=http://localhost:3000 bun test tests/api
+//
+// Sign-in is WhatsApp OTP only. Tests cannot read the WhatsApp message, so they
+// insert a known OtpCode row directly (same HMAC scheme as src/lib/providers/otp.ts)
+// and call /api/auth/otp/verify. Requires DATABASE_URL and AUTH_SECRET in the test
+// environment, matching the server under test.
+import { createHmac } from "node:crypto";
+import { PrismaClient } from "@prisma/client";
+
+export const BASE = process.env.BASE_URL ?? "http://localhost:3000";
+const db = new PrismaClient();
+
+export type Role = "admin" | "instructor" | "student" | "noSub" | "expired" | "anon";
+
+// Seeded accounts (prisma/seed.ts), identified by WhatsApp number.
+export const ACCOUNTS: Record<Exclude<Role, "anon">, string> = {
+  admin: "+919000000001",
+  instructor: "+919000000002",
+  student: "+919000000010",
+  noSub: "+919000000012",
+  expired: "+919000000013",
+};
+
+export function testPhone(): string {
+  return `+91700${String(Math.floor(Math.random() * 1e7)).padStart(7, "0")}`;
+}
+
+/** Plants a known code for `phone` (E.164 with +) and returns it. */
+export async function plantOtp(phone: string, purpose: "LOGIN" | "REGISTER" = "LOGIN"): Promise<string> {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) throw new Error("AUTH_SECRET must be set for API tests");
+  const digits = phone.replace(/\D/g, "");
+  const code = "123456";
+  await db.otpCode.updateMany({ where: { phone: digits, consumedAt: null }, data: { consumedAt: new Date() } });
+  await db.otpCode.create({
+    data: {
+      phone: digits,
+      codeHash: createHmac("sha256", secret).update(`otp:${digits}:${code}`).digest("hex"),
+      purpose,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    },
+  });
+  return code;
+}
+
+const rnd = () => Math.floor(Math.random() * 250) + 1;
+
+export async function verifyWith(
+  phone: string,
+  code: string,
+  extra: Record<string, unknown> = {},
+): Promise<{ res: Response; cookie: string }> {
+  const res = await fetch(`${BASE}/api/auth/otp/verify`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: BASE, "x-forwarded-for": `10.${rnd()}.${rnd()}.${rnd()}` },
+    body: JSON.stringify({ phone, code, ...extra }),
+  });
+  const cookie = res.headers
+    .getSetCookie()
+    .map((c) => c.split(";")[0])
+    .join("; ");
+  return { res, cookie };
+}
+
+export async function signIn(phone: string): Promise<{ res: Response; cookie: string }> {
+  const code = await plantOtp(phone);
+  return verifyWith(phone, code);
+}
+
+export async function registerStudent(name = "Flow Tester"): Promise<{ phone: string; cookie: string; res: Response }> {
+  const phone = testPhone();
+  const code = await plantOtp(phone, "REGISTER");
+  const { res, cookie } = await verifyWith(phone, code, { mode: "register", name });
+  return { phone, cookie, res };
+}
+
+const cookies = new Map<string, string>();
+
+export async function cookieFor(role: Role): Promise<string> {
+  if (role === "anon") return "";
+  const hit = cookies.get(role);
+  if (hit) return hit;
+  const { res, cookie } = await signIn(ACCOUNTS[role]);
+  if (!res.ok || !cookie) throw new Error(`sign-in failed for ${role}: ${res.status}`);
+  cookies.set(role, cookie);
+  return cookie;
+}
+
+export async function api(
+  role: Role,
+  method: string,
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+): Promise<{ status: number; json: any; res: Response }> {
+  const cookie = await cookieFor(role);
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: {
+      ...(body !== undefined ? { "content-type": "application/json" } : {}),
+      ...(cookie ? { cookie } : {}),
+      origin: BASE,
+      ...headers,
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = text;
+  }
+  return { status: res.status, json, res };
+}

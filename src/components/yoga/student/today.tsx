@@ -1,4 +1,5 @@
 "use client";
+import { usePlan } from "@/hooks/use-plan";
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApp } from "@/lib/store";
@@ -28,6 +29,7 @@ import {
   classPhase,
 } from "./format";
 import { ClassCountdown } from "./class-countdown";
+import { SunFan } from "@/components/yoga/art/sunrise";
 import { FeedbackWidget } from "./feedback-widget";
 
 type TodayClass = {
@@ -46,6 +48,7 @@ type TodayClass = {
 };
 
 export function TodayView() {
+  const plan = usePlan();
   const { setView } = useApp();
   const qc = useQueryClient();
   const [now, setNow] = useState(Date.now());
@@ -117,34 +120,33 @@ export function TodayView() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Today&apos;s class</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Today&apos;s class</h1>
         <p className="text-sm text-muted-foreground">
           {prettyDate(c.date)}
         </p>
       </div>
 
       {/* Hero class card with live countdown */}
-      <Card className="relative overflow-hidden border-border/60">
-        <div className="absolute inset-0 bg-brand-gradient opacity-95" />
-        <div className="absolute -top-20 -right-16 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
-        <div className="absolute -bottom-24 -left-12 h-48 w-48 rounded-full bg-amber-300/20 blur-2xl" />
-        <CardContent className="relative p-6 md:p-8 text-primary-foreground space-y-6">
+      <Card className="relative overflow-hidden rounded-[2rem] border-0 shadow-lift">
+        <div className="absolute inset-0 bg-sunrise-sky" />
+        <SunFan className="pointer-events-none absolute -right-24 -top-28" />
+        <CardContent className="relative p-6 md:p-8 text-[#3B1F1A] space-y-6">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
             <div className="space-y-3 min-w-0 flex-1">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur px-3 py-1 text-xs">
+              <div className="inline-flex items-center gap-2 rounded-full bg-[#FFFBF2] px-3 py-1 text-xs font-extrabold uppercase tracking-wide">
                 <Video className="h-3.5 w-3.5" />
                 {c.scheduleName}
               </div>
-              <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+              <h2 className="font-display text-3xl md:text-4xl font-semibold tracking-tight">
                 {c.scheduleName}
               </h2>
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FFFBF2]/80 px-3 py-1 font-bold">
                   <Clock className="h-4 w-4" /> {prettyTime(c.startTime)} —{" "}
                   {prettyTime(c.endTime)}
                 </span>
                 {c.reminderSent && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/20 px-2.5 py-0.5 text-xs">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#DCEBD8] text-[#2F5A36] px-3 py-1 text-xs font-bold">
                     <Bell className="h-3 w-3" /> WhatsApp reminder sent
                   </span>
                 )}
@@ -167,7 +169,7 @@ export function TodayView() {
               <>
                 <Button
                   size="lg"
-                  className="bg-white text-emerald-700 hover:bg-white/90 shadow-lg"
+                  className="h-14 px-8 text-base bg-primary text-primary-foreground hover:bg-primary/90 shadow-lift"
                   onClick={() => window.open(c.meetUrl!, "_blank")}
                 >
                   <Play className="h-4 w-4" /> Join class on Google Meet
@@ -175,7 +177,7 @@ export function TodayView() {
                 <Button
                   size="lg"
                   variant="secondary"
-                  className="bg-white/15 text-primary-foreground hover:bg-white/25 border-0"
+                  className="h-14 px-6 bg-[#FFFBF2] text-[#3B1F1A] hover:bg-white border-0"
                   onClick={copyMeet}
                 >
                   {copied ? (
@@ -192,7 +194,7 @@ export function TodayView() {
             ) : c.membershipRequired ? (
               <Button
                 size="lg"
-                className="bg-white text-emerald-700 hover:bg-white/90 shadow-lg"
+                className="h-14 px-8 text-base bg-primary text-primary-foreground hover:bg-primary/90 shadow-lift"
                 onClick={() => setView("student-membership")}
               >
                 <Sparkles className="h-4 w-4" /> Subscribe to join
@@ -201,13 +203,13 @@ export function TodayView() {
               <Button
                 size="lg"
                 variant="secondary"
-                className="bg-white/15 text-primary-foreground hover:bg-white/25"
+                className="h-14 px-6 bg-[#FFFBF2]/70 text-[#3B1F1A]"
                 disabled
               >
                 <Video className="h-4 w-4" /> Meet link not ready yet
               </Button>
             )}
-            <div className="flex items-center gap-1.5 text-[11px] text-primary-foreground/70 self-center px-1">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-[#5A372E] self-center px-1">
               <ShieldCheck className="h-3.5 w-3.5" /> Access verified by active
               membership
             </div>
@@ -222,7 +224,7 @@ export function TodayView() {
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
               Time
             </p>
-            <p className="text-lg font-semibold">
+            <p className="font-display text-xl font-semibold">
               {prettyTime(c.startTime)} – {prettyTime(c.endTime)}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -297,7 +299,7 @@ export function TodayView() {
             <div className="flex-1">
               <p className="font-medium">Subscribe to unlock today&apos;s class</p>
               <p className="text-sm text-muted-foreground">
-                A ₹500/month recurring membership unlocks every live class and
+                A {plan.display}/month recurring membership unlocks every live class and
                 the daily WhatsApp reminder.
               </p>
             </div>

@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +27,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  CalendarDays,
   Plus,
   Pencil,
   Trash2,
@@ -44,8 +42,10 @@ import {
   ErrorCard,
   EmptyState,
   Spinner,
+  StatusBadge,
   istDate,
 } from "./shared";
+import { HeaderSun } from "@/components/yoga/art/admin-art";
 
 type Schedule = {
   id: string;
@@ -130,21 +130,20 @@ export function SchedulesView() {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <PageHeader
-        title="Schedules"
+        eyebrow="Classes"
+        title="Class schedules"
         description="Recurring weekly class templates — one per instructor/program."
         actions={
           <>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => qc.invalidateQueries({ queryKey: ["admin", "schedules"] })}
             >
               <RefreshCw className="h-4 w-4" /> Refresh
             </Button>
             <Button
-              size="sm"
               onClick={() => {
                 setAddKey((k) => k + 1);
                 setAddOpen(true);
@@ -159,14 +158,7 @@ export function SchedulesView() {
       {q.isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {Array.from({ length: 2 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-6 space-y-3">
-                <Skeleton className="h-6 w-1/2" />
-                <Skeleton className="h-4 w-1/3" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </CardContent>
-            </Card>
+            <Skeleton key={i} className="h-56 rounded-3xl" />
           ))}
         </div>
       ) : q.isError ? (
@@ -181,7 +173,6 @@ export function SchedulesView() {
           description="Add a recurring weekly schedule to start generating yoga classes."
           action={
             <Button
-              size="sm"
               onClick={() => {
                 setAddKey((k) => k + 1);
                 setAddOpen(true);
@@ -192,7 +183,7 @@ export function SchedulesView() {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {q.data!.items.map((s) => (
             <ScheduleCard
               key={s.id}
@@ -203,6 +194,13 @@ export function SchedulesView() {
           ))}
         </div>
       )}
+
+      <div className="relative overflow-hidden rounded-3xl bg-[#FBE3B0] px-5 py-4 text-[#3B1F1A]">
+        <HeaderSun className="pointer-events-none absolute -bottom-6 -right-8 opacity-80" />
+        <p className="relative m-0 max-w-2xl pr-24 text-[15px] font-semibold leading-relaxed">
+          A Google Meet link is created for each class day, and a WhatsApp reminder goes out shortly before the start. Holidays are set on the Exceptions page.
+        </p>
+      </div>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="sm:max-w-lg">
@@ -291,81 +289,67 @@ function ScheduleCard({
   onDelete: () => void;
 }) {
   return (
-    <Card className="border-border/60">
-      <CardContent className="p-5 space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <CalendarDays className="h-4 w-4 text-primary" />
-              <h3 className="font-semibold truncate">{s.name}</h3>
-              {s.active ? (
-                <Badge
-                  variant="outline"
-                  className="border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                >
-                  Active
-                </Badge>
-              ) : (
-                <Badge
-                  variant="outline"
-                  className="border-border bg-muted text-muted-foreground"
-                >
-                  Paused
-                </Badge>
-              )}
-            </div>
-            <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-              <span className="inline-flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {prettyTime(s.startTime)} – {prettyTime(s.endTime)}
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <Globe className="h-3 w-3" />
-                {s.timezone}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <Button size="sm" variant="ghost" onClick={onEdit} aria-label="Edit schedule">
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={onDelete}
-              aria-label="Delete schedule"
-              className="text-destructive hover:text-destructive"
+    <article
+      className={`rounded-3xl p-6 shadow-soft ${
+        s.active ? "bg-[#FFF0DA] text-[#3B1F1A] dark:bg-card dark:text-card-foreground" : "bg-card text-card-foreground border border-border/50"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate font-display text-2xl font-semibold leading-tight">{s.name}</h3>
+          <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-base font-extrabold">
+            <span className="inline-flex items-center gap-1.5">
+              <Clock className="h-4 w-4" />
+              {prettyTime(s.startTime)} – {prettyTime(s.endTime)}
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-[15px] font-bold text-muted-foreground">
+              <Globe className="h-4 w-4" />
+              {s.timezone}
+            </span>
+          </p>
+        </div>
+        <StatusBadge status={s.active ? "ACTIVE" : "IGNORED"} />
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2" role="img" aria-label={`Runs ${WEEKDAYS.filter((w) => s[w.key]).map((w) => w.label).join(", ") || "no days"}`}>
+        {WEEKDAYS.map(({ key, label }) => {
+          const on = s[key];
+          return (
+            <span
+              key={key}
+              aria-hidden="true"
+              className={`inline-flex min-h-8 min-w-11 items-center justify-center rounded-full px-3 text-[13px] font-extrabold ${
+                on
+                  ? "bg-[#8FAF8A] text-[#19301d]"
+                  : "bg-secondary text-muted-foreground line-through"
+              }`}
             >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+              {label}
+            </span>
+          );
+        })}
+      </div>
 
-        <div className="flex flex-wrap gap-1.5">
-          {WEEKDAYS.map(({ key, label }) => {
-            const on = s[key];
-            return (
-              <span
-                key={key}
-                className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${
-                  on
-                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                    : "bg-muted text-muted-foreground line-through"
-                }`}
-              >
-                {label}
-              </span>
-            );
-          })}
-        </div>
+      <div className="mt-5 grid grid-cols-3 gap-2 border-t-2 border-dotted border-border pt-4">
+        <Stat label="Classes" value={s._count?.classes ?? 0} />
+        <Stat label="Exceptions" value={s._count?.exceptions ?? 0} />
+        <Stat label="Created" value={istDate(s.createdAt)} small />
+      </div>
 
-        <div className="grid grid-cols-3 gap-2 text-center border-t border-border/60 pt-3">
-          <Stat label="Classes" value={s._count?.classes ?? 0} />
-          <Stat label="Exceptions" value={s._count?.exceptions ?? 0} />
-          <Stat label="Created" value={istDate(s.createdAt)} small />
-        </div>
-      </CardContent>
-    </Card>
+      <div className="mt-5 flex flex-wrap gap-3">
+        <Button variant="outline" onClick={onEdit} aria-label="Edit schedule">
+          <Pencil className="h-4 w-4" /> Edit
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={onDelete}
+          aria-label="Delete schedule"
+          className="bg-[#F7C9B6] text-[#7A2A10] hover:bg-[#F7C9B6]/80 hover:text-[#7A2A10] dark:bg-[#E8792B]/25 dark:text-[#F7C9B6]"
+        >
+          <Trash2 className="h-4 w-4" /> Delete
+        </Button>
+      </div>
+    </article>
   );
 }
 
@@ -379,12 +363,12 @@ function Stat({
   small?: boolean;
 }) {
   return (
-    <div className="flex flex-col">
-      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+    <div className="flex min-w-0 flex-col">
+      <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </span>
       <span
-        className={`font-medium ${small ? "text-[11px]" : "text-base"} truncate`}
+        className={`truncate ${small ? "text-sm font-bold mt-1.5" : "font-display text-3xl font-bold leading-tight"}`}
       >
         {value}
       </span>
@@ -430,7 +414,7 @@ function ScheduleForm({
     <>
       <div className="space-y-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">Schedule name</Label>
+          <Label className="text-sm font-extrabold">Schedule name</Label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -440,7 +424,7 @@ function ScheduleForm({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-xs">Start time (HH:mm)</Label>
+            <Label className="text-sm font-extrabold">Start time (HH:mm)</Label>
             <Input
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
@@ -449,7 +433,7 @@ function ScheduleForm({
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">End time (HH:mm)</Label>
+            <Label className="text-sm font-extrabold">End time (HH:mm)</Label>
             <Input
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
@@ -459,7 +443,7 @@ function ScheduleForm({
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Timezone</Label>
+          <Label className="text-sm font-extrabold">Timezone</Label>
           <Input
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
@@ -467,17 +451,18 @@ function ScheduleForm({
           />
         </div>
         <div className="space-y-2">
-          <Label className="text-xs">Active weekdays</Label>
-          <div className="grid grid-cols-7 gap-1.5">
+          <Label className="text-sm font-extrabold">Active weekdays</Label>
+          <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
             {WEEKDAYS.map(({ key, label }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setDays((d) => ({ ...d, [key]: !d[key] }))}
-                className={`text-[11px] font-medium py-1.5 rounded-md border transition-colors ${
+                aria-pressed={!!days[key]}
+                className={`min-h-11 rounded-full border-2 text-[13px] font-extrabold transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-foreground/80 ${
                   days[key]
-                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                    : "bg-muted text-muted-foreground border-border"
+                    ? "bg-[#3B1F1A] text-[#FFF4E0] border-[#3B1F1A] dark:bg-[#FFF4E0] dark:text-[#3B1F1A] dark:border-[#FFF4E0]"
+                    : "bg-card text-foreground border-border"
                 }`}
               >
                 {label}
@@ -485,10 +470,10 @@ function ScheduleForm({
             ))}
           </div>
         </div>
-        <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+        <div className="flex items-center justify-between gap-4 rounded-3xl bg-[#DCEBD8] px-5 py-4 text-[#244B2B] dark:bg-[#2F5A36]/40 dark:text-[#DCEBD8]">
           <div className="flex flex-col">
-            <Label className="text-xs">Active schedule</Label>
-            <span className="text-[11px] text-muted-foreground">
+            <Label className="text-base font-extrabold">Active schedule</Label>
+            <span className="text-sm font-bold">
               Pause to stop new class generation.
             </span>
           </div>

@@ -90,9 +90,9 @@ export function NotesEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 font-display text-2xl font-semibold">
             <StickyNote className="h-5 w-5 text-primary" />
             Class notes
           </DialogTitle>
@@ -109,7 +109,7 @@ export function NotesEditorDialog({
         ) : (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="notes-text" className="text-sm font-medium">
+              <Label htmlFor="notes-text" className="text-sm font-bold">
                 Note for attendees
               </Label>
               <Textarea
@@ -124,18 +124,17 @@ export function NotesEditorDialog({
                 <span className="text-muted-foreground flex items-center gap-1">
                   <Sparkles className="h-3 w-3" /> Supports multi-line text
                 </span>
-                <span className={remaining < 100 ? "text-rose-600 font-medium" : "text-muted-foreground"}>
+                <span className={remaining < 100 ? "text-destructive font-bold" : "text-muted-foreground"}>
                   {remaining} left
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
+            <div className="flex items-center justify-between gap-2 pt-2 border-t-2 border-dotted border-border">
               {hasExisting ? (
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="text-rose-700 hover:text-rose-800 hover:bg-rose-500/10"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
                   disabled={clearMut.isPending}
                   onClick={() => clearMut.mutate()}
                 >
@@ -150,12 +149,10 @@ export function NotesEditorDialog({
                 <span />
               )}
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
                   Cancel
                 </Button>
                 <Button
-                  size="sm"
-                  className="bg-brand-gradient text-primary-foreground"
                   disabled={saveMut.isPending || isUnchanged}
                   onClick={() => saveMut.mutate()}
                 >

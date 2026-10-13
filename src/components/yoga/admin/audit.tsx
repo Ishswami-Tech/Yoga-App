@@ -32,6 +32,7 @@ import {
   Settings as SettingsIcon,
   Cog,
   Inbox,
+  MessageCircle,
 } from "lucide-react";
 import {
   PageHeader,
@@ -63,7 +64,20 @@ const ENTITY_FILTERS = [
   { value: "Subscription", label: "Subscription" },
   { value: "AppSettings", label: "App settings" },
   { value: "Worker", label: "Worker" },
+  { value: "WhatsAppMessage", label: "WhatsApp message" },
 ];
+
+// Friendly labels for audit actions; anything unknown falls back to a
+// humanised version of the raw code (e.g. USER_UPDATE -> "User update").
+const ACTION_LABELS: Record<string, string> = {
+  PLAN_PRICE_UPDATE: "Price updated",
+};
+
+function actionLabel(action: string): string {
+  if (ACTION_LABELS[action]) return ACTION_LABELS[action];
+  const t = action.replace(/[_.-]+/g, " ").trim().toLowerCase();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : action;
+}
 
 const ENTITY_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   User: UserIcon,
@@ -73,6 +87,7 @@ const ENTITY_ICON: Record<string, React.ComponentType<{ className?: string }>> =
   Subscription: RefreshCcw,
   AppSettings: SettingsIcon,
   Worker: Cog,
+  WhatsAppMessage: MessageCircle,
 };
 
 export function AuditView() {
@@ -98,13 +113,12 @@ export function AuditView() {
           <>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => qc.invalidateQueries({ queryKey: ["admin", "audit"] })}
             >
               <RefreshCw className="h-4 w-4" /> Refresh
             </Button>
             <Select value={entityType} onValueChange={setEntityType}>
-              <SelectTrigger size="sm" className="w-44">
+              <SelectTrigger className="h-11 rounded-full font-semibold w-44">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -139,7 +153,7 @@ export function AuditView() {
           description="Admin actions (user edits, schedule changes, worker runs) will appear here."
         />
       ) : (
-        <Card>
+        <Card className="overflow-hidden py-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -157,11 +171,11 @@ export function AuditView() {
                   <TableRow key={a.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <span className="grid place-items-center h-7 w-7 rounded-md bg-brand-gradient/10 text-primary shrink-0">
-                          <Icon className="h-3.5 w-3.5" />
+                        <span className="grid place-items-center h-9 w-9 rounded-full bg-secondary text-primary shrink-0">
+                          <Icon className="h-4 w-4" />
                         </span>
                         <div className="flex flex-col min-w-0">
-                          <span className="font-medium text-sm">{a.action}</span>
+                          <span className="font-bold text-sm" title={a.action}>{actionLabel(a.action)}</span>
                           <MonoText className="lg:hidden">
                             {a.entityId.slice(0, 18)}
                             {a.entityId.length > 18 ? "…" : ""}
@@ -173,7 +187,7 @@ export function AuditView() {
                       <div className="flex flex-col gap-1">
                         <Badge
                           variant="outline"
-                          className="border-border bg-muted text-muted-foreground w-fit"
+                          className="border-transparent bg-secondary text-foreground w-fit"
                         >
                           {a.entityType}
                         </Badge>
@@ -194,7 +208,7 @@ export function AuditView() {
                       </div>
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
-                      <pre className="text-[10px] font-mono bg-muted/60 p-2 rounded-md max-w-[280px] overflow-x-auto scroll-soft">
+                      <pre className="text-[10px] font-mono bg-muted p-2.5 rounded-xl max-w-[280px] overflow-x-auto scroll-soft">
                         {JSON.stringify(a.metadata ?? {}, null, 2)}
                       </pre>
                     </TableCell>

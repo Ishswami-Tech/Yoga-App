@@ -1,7 +1,8 @@
 "use client";
+import { usePlan } from "@/hooks/use-plan";
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { apiPost, ApiError } from "@/lib/api-client";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiGet, apiPost, ApiError } from "@/lib/api-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +23,7 @@ import { toast } from "sonner";
 import { PageHeader } from "./shared";
 
 export function BulkMessageView() {
+  const plan = usePlan();
   const [message, setMessage] = useState("");
   const [activeOnly, setActiveOnly] = useState(true);
   const [result, setResult] = useState<{
@@ -31,11 +33,17 @@ export function BulkMessageView() {
     errors: string[];
   } | null>(null);
 
+  const countQ = useQuery<{ count: number }>({
+    queryKey: ["admin", "bulk-recipients", activeOnly],
+    queryFn: () => apiGet<{ count: number }>(`/api/admin/bulk-message?activeOnly=${activeOnly}`),
+  });
+
   const sendMut = useMutation({
     mutationFn: () =>
       apiPost("/api/admin/bulk-message", { message, activeOnly }),
     onSuccess: (res: any) => {
       setResult(res);
+      countQ.refetch();
       toast.success(`Message sent to ${res.sent} member${res.sent === 1 ? "" : "s"}`, {
         description: res.failed > 0 ? `${res.failed} failed` : undefined,
       });
@@ -59,10 +67,10 @@ export function BulkMessageView() {
       <div className="grid gap-4 md:grid-cols-3">
         {/* Composer */}
         <div className="md:col-span-2 space-y-4">
-          <Card className="border-border/60">
+          <Card>
             <CardContent className="p-5 space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="message" className="text-sm font-semibold">
+                <Label htmlFor="message" className="text-sm font-bold">
                   Message
                 </Label>
                 <Textarea
@@ -70,25 +78,25 @@ export function BulkMessageView() {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Write your message here… (e.g. 'Tomorrow's class starts 30 min early at 6:30 AM')"
-                  className="min-h-[140px] resize-y"
+                  className="min-h-[140px] resize-y rounded-2xl"
                   maxLength={maxLen}
                 />
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">
                     WhatsApp text message — not a template.
                   </span>
-                  <span className={remaining < 50 ? "text-rose-600 font-medium" : "text-muted-foreground"}>
+                  <span className={remaining < 50 ? "text-primary font-medium" : "text-muted-foreground"}>
                     {remaining} characters left
                   </span>
                 </div>
               </div>
 
               {/* Recipients toggle */}
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div className="flex items-center justify-between rounded-2xl border border-border bg-background p-3.5 min-h-11">
                 <div>
                   <p className="text-sm font-medium">Active members only</p>
                   <p className="text-xs text-muted-foreground">
-                    Only send to members with an active ₹500/month membership
+                    Only send to members with an active {plan.display}/month membership
                   </p>
                 </div>
                 <Switch
@@ -98,7 +106,7 @@ export function BulkMessageView() {
               </div>
 
               {/* Warning */}
-              <div className="flex items-start gap-2 rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 text-xs text-amber-700 dark:text-amber-400">
+              <div className="flex items-start gap-2 rounded-2xl bg-marigold/15 border border-marigold/60 p-3.5 text-xs font-semibold text-foreground">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                 <p>
                   This sends a real WhatsApp message to every recipient.
@@ -110,7 +118,7 @@ export function BulkMessageView() {
 
               {/* Send button */}
               <Button
-                className="w-full bg-brand-gradient text-primary-foreground"
+                size="lg" className="w-full"
                 disabled={!canSend || sendMut.isPending}
                 onClick={() => sendMut.mutate()}
               >
@@ -131,14 +139,14 @@ export function BulkMessageView() {
         {/* Side panel */}
         <div className="space-y-4">
           {/* Recipients preview */}
-          <Card className="border-border/60">
+          <Card>
             <CardContent className="p-5 space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold">
+              <div className="flex items-center gap-2 font-display text-lg font-semibold">
                 <Users className="h-4 w-4 text-primary" /> Recipients
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-brand-gradient">
-                  {activeOnly ? "2" : "4"}
+                <span className="font-display text-4xl font-semibold text-primary">
+                  {countQ.isLoading ? "…" : countQ.isError ? "—" : countQ.data?.count ?? 0}
                 </span>
                 <span className="text-sm text-muted-foreground">
                   {activeOnly ? "active" : "total"} members
@@ -152,25 +160,25 @@ export function BulkMessageView() {
 
           {/* Result */}
           {result && (
-            <Card className="border-emerald-500/30">
+            <Card className="border-success/30">
               <CardContent className="p-5 space-y-3">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Result
+                <div className="flex items-center gap-2 font-display text-lg font-semibold">
+                  <CheckCircle2 className="h-4 w-4 text-success" /> Result
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg bg-emerald-500/10 p-2.5 text-center">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 mx-auto mb-1" />
-                    <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">
+                  <div className="rounded-2xl bg-success-soft p-3 text-center">
+                    <CheckCircle2 className="h-4 w-4 text-success mx-auto mb-1" />
+                    <p className="text-xl font-bold text-success">
                       {result.sent}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">Sent</p>
+                    <p className="text-xs font-bold text-foreground">Sent</p>
                   </div>
-                  <div className="rounded-lg bg-rose-500/10 p-2.5 text-center">
-                    <XCircle className="h-4 w-4 text-rose-600 mx-auto mb-1" />
-                    <p className="text-xl font-bold text-rose-700 dark:text-rose-300">
+                  <div className="rounded-2xl bg-accent p-3 text-center">
+                    <XCircle className="h-4 w-4 text-primary mx-auto mb-1" />
+                    <p className="text-xl font-bold text-primary">
                       {result.failed}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">Failed</p>
+                    <p className="text-xs font-bold text-foreground">Failed</p>
                   </div>
                 </div>
                 {result.errors.length > 0 && (
@@ -187,12 +195,12 @@ export function BulkMessageView() {
 
           {/* Message preview */}
           {message && (
-            <Card className="border-border/60">
+            <Card>
               <CardContent className="p-4">
                 <p className="text-xs font-semibold mb-2 flex items-center gap-1.5">
                   <MessageCircle className="h-3.5 w-3.5 text-primary" /> Preview
                 </p>
-                <div className="rounded-2xl rounded-tl-sm bg-emerald-500/10 p-3 text-sm">
+                <div className="rounded-3xl rounded-tl-md bg-success-soft p-3.5 text-sm text-foreground">
                   {message}
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1.5">

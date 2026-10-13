@@ -15,6 +15,8 @@ import {
   ErrorCard,
   ExceptionTypeBadge,
   KV,
+  StatusChip,
+  Eyebrow,
   todayIST,
   todayISTWeekday,
 } from "./shared";
@@ -115,16 +117,14 @@ export function ScheduleView() {
   return (
     <div className="space-y-6">
       {/* Today header */}
-      <Card className="border-border/60">
-        <CardContent className="p-5 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-brand-gradient/10 grid place-items-center shrink-0">
-            <CalendarDays className="h-5 w-5 text-primary" />
+      <Card className="border-0 bg-gradient-to-br from-secondary to-accent rounded-[2rem] py-0">
+        <CardContent className="p-6 flex items-center gap-4">
+          <div className="h-12 w-12 rounded-full bg-marigold text-ink grid place-items-center shrink-0">
+            <CalendarDays className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Today (IST)
-            </p>
-            <p className="text-lg font-semibold tracking-tight">
+            <Eyebrow>Today (IST)</Eyebrow>
+            <p className="font-display text-2xl md:text-3xl font-semibold tracking-tight">
               {prettyDate(todayStr)} · {prettyTime(currentTimeHHMM())} IST
             </p>
           </div>
@@ -135,7 +135,7 @@ export function ScheduleView() {
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
-            <h2 className="text-lg font-semibold tracking-tight">
+            <h2 className="font-display text-2xl font-semibold tracking-tight">
               Recurring weekly schedules
             </h2>
             <p className="text-xs text-muted-foreground">
@@ -165,7 +165,7 @@ export function ScheduleView() {
           </div>
         )}
 
-        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-200">
+        <div className="flex items-start gap-2 rounded-2xl border-2 border-marigold bg-marigold/15 p-4 text-sm font-semibold text-foreground">
           <Info className="h-4 w-4 shrink-0 mt-0.5" />
           <p>
             Instructors can&apos;t edit schedules in this MVP. Ask an admin to
@@ -178,7 +178,7 @@ export function ScheduleView() {
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
-            <h2 className="text-lg font-semibold tracking-tight">
+            <h2 className="font-display text-2xl font-semibold tracking-tight">
               Holiday &amp; special-day exceptions
             </h2>
             <p className="text-xs text-muted-foreground">
@@ -200,7 +200,7 @@ export function ScheduleView() {
           <div className="space-y-4">
             {upcomingExceptions.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-muted-foreground">
                   Upcoming ({upcomingExceptions.length})
                 </p>
                 <div className="space-y-2">
@@ -212,7 +212,7 @@ export function ScheduleView() {
             )}
             {pastExceptions.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-muted-foreground">
                   Past ({pastExceptions.length})
                 </p>
                 <div className="space-y-2">
@@ -237,28 +237,22 @@ function ScheduleCard({
   todayWd: number;
 }) {
   return (
-    <Card className="border-border/60">
-      <CardContent className="p-5 space-y-4">
+    <Card className="py-0">
+      <CardContent className="p-6 space-y-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-semibold tracking-tight">{s.name}</p>
-              <span
-                className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium ${
-                  s.active
-                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                    : "bg-muted text-muted-foreground"
-                }`}
-              >
+              <p className="font-display text-xl font-semibold tracking-tight">{s.name}</p>
+              <StatusChip tone={s.active ? "sage" : "neutral"}>
                 {s.active ? "Active" : "Paused"}
-              </span>
+              </StatusChip>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {s.timezone}
             </p>
           </div>
-          <div className="flex items-center gap-3 text-xs">
-            <span className="inline-flex items-center gap-1 text-muted-foreground">
+          <div className="flex items-center gap-3 text-sm font-bold">
+            <span className="inline-flex items-center gap-1 text-foreground">
               <Clock className="h-3.5 w-3.5" />
               {prettyTime(s.startTime)} – {prettyTime(s.endTime)}
             </span>
@@ -273,20 +267,20 @@ function ScheduleCard({
             return (
               <span
                 key={d.key}
-                className={`inline-flex items-center justify-center min-w-[42px] rounded-md border px-2 py-1 text-[11px] font-medium ${
+                className={`inline-flex items-center justify-center min-w-[48px] min-h-9 rounded-full border-2 px-3 text-xs font-extrabold ${
                   isOn
-                    ? "border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                    ? "border-transparent bg-emerald-400 text-ink"
                     : "border-border bg-muted text-muted-foreground"
                 } ${
                   isToday
-                    ? "ring-2 ring-amber-500/60 ring-offset-1 ring-offset-background"
+                    ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
                     : ""
                 }`}
                 title={isToday ? "Today" : isOn ? "Active day" : "Inactive"}
               >
                 {d.short}
                 {isToday && (
-                  <span className="ml-1 text-[9px] text-amber-600 dark:text-amber-400">
+                  <span className="ml-1 text-[9px] text-primary">
                     ●
                   </span>
                 )}
@@ -330,27 +324,21 @@ function ExceptionCard({
 }) {
   return (
     <Card
-      className={`border-border/60 ${muted ? "opacity-70" : ""}`}
+      className={`py-0 ${muted ? "opacity-70" : ""}`}
     >
       <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div
-            className={`h-10 w-10 rounded-lg grid place-items-center shrink-0 ${
-              e.type === "NO_CLASS"
-                ? "bg-rose-500/10"
-                : "bg-amber-500/10"
+            className={`h-11 w-11 rounded-full grid place-items-center shrink-0 text-ink ${
+              e.type === "NO_CLASS" ? "bg-rose" : "bg-marigold"
             }`}
           >
             <CalendarOff
-              className={`h-5 w-5 ${
-                e.type === "NO_CLASS"
-                  ? "text-rose-600 dark:text-rose-400"
-                  : "text-amber-600 dark:text-amber-400"
-              }`}
+              className="h-5 w-5"
             />
           </div>
           <div className="min-w-0">
-            <p className="font-semibold">{prettyDate(e.date)}</p>
+            <p className="font-bold">{prettyDate(e.date)}</p>
             <p className="text-sm text-muted-foreground truncate">
               {e.schedule.name}
               {e.reason ? ` · ${e.reason}` : ""}

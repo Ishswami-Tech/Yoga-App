@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { applyRazorpayEvent } from "@/lib/services/subscriptions";
+import { settleOrder } from "@/lib/services/payment-orders";
 
 export const runtime = "nodejs";
 
-// Razorpay webhook signature verification.
-//
-// In production this checks the X-Razorpay-Signature header against an
-// HMAC-SHA256 of the raw request body using RAZORPAY_WEBHOOK_SECRET. In the
-// sandbox (no real secret configured) we accept any well-formed JSON payload
-// so the test harness can drive the flow. We ALWAYS still enforce
-// idempotency via the WebhookEvent table.
+// Razorpay webhook signature verification: X-Razorpay-Signature must equal
+// HMAC-SHA256(RAZORPAY_WEBHOOK_SECRET, raw body). The secret is mandatory in every environment
+// (503 when missing). Idempotency is enforced via the WebhookEvent table, keyed by the
+// X-Razorpay-Event-Id header.
+function validSignature(secret: string, raw: string, signature: string): boolean {
+  const expected = createHmac("sha256", secret).update(raw).digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(signature);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export async function POST(req: NextRequest) {
   const raw = await req.text();
   let payload: any;
@@ -20,25 +25,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
 
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET?.trim();
+  if (!secret) {
+    return NextResponse.json({ error: "webhook secret not configured" }, { status: 503 });
+  }
   const signature = req.headers.get("x-razorpay-signature") ?? "";
-  if (secret) {
-    const expected = createHash("sha256") // razorpay uses HMAC-SHA256
-      .update(secret + raw)
-      .digest("hex");
-    // Note: the real algo is HMAC(secret, body); we approximate here.
-    if (signature && signature !== expected) {
-      return NextResponse.json({ error: "bad signature" }, { status: 401 });
-    }
+  if (!signature || !validSignature(secret, raw, signature)) {
+    return NextResponse.json({ error: "bad signature" }, { status: 401 });
   }
 
   const event = payload?.event;
+  // Razorpay sends a unique id per event in X-Razorpay-Event-Id (stable across its retries).
+  // Fall back to a hash of the raw body, which is also stable across retries.
   const eventId =
+    req.headers.get("x-razorpay-event-id") ??
     payload?.event_id ??
-    payload?.payload?.subscription?.entity?.id ??
-    `evt_${Date.now()}`;
+    `body_${createHash("sha256").update(raw).digest("hex")}`;
   if (!event) {
     return NextResponse.json({ error: "no event" }, { status: 400 });
+  }
+
+  // One-time (order) payments: re-check with Razorpay and settle; no subscription is involved.
+  const orderEntityId = payload?.payload?.order?.entity?.id ?? payload?.payload?.payment?.entity?.order_id;
+  if (
+    !payload?.payload?.subscription?.entity?.id &&
+    orderEntityId &&
+    (event === "order.paid" || event === "payment.captured")
+  ) {
+    const settled = await settleOrder(String(orderEntityId), "razorpay");
+    return NextResponse.json({ received: true, applied: settled.paid, reason: settled.reason ?? null });
   }
 
   const res = await applyRazorpayEvent(payload, String(eventId));

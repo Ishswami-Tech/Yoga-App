@@ -6,8 +6,8 @@ import { run, fail, unauthorized } from "@/lib/api";
 export const runtime = "nodejs";
 
 // Create a Razorpay subscription for the logged-in student and return the
-// data the browser needs for Checkout. The actual membership activation
-// happens only after the verified webhook arrives.
+// data the browser needs for Checkout (subscription id + public key id only).
+// Activation happens only after server-side verification / the verified webhook.
 export async function POST(req: NextRequest) {
   return run(async () => {
     const user = await requireAuth();
@@ -28,9 +28,6 @@ export async function GET() {
   return run(async () => {
     const user = await getCurrentUser();
     if (!user) return unauthorized();
-    const { createSubscriptionForUser: _unused } = await import(
-      "@/lib/services/subscriptions"
-    );
     const { getMembershipState } = await import(
       "@/lib/services/subscriptions"
     );

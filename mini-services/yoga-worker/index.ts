@@ -11,14 +11,21 @@
 // POST /api/workers/run?job=generate|remind|retry on the Next.js app. The
 // endpoint accepts either an admin session OR the CRON_SECRET query param.
 //
-// Per project rules: this service runs on a fixed port (3004) and exposes
-// GET /health for liveness checks. All outbound requests use relative paths
-// with the XTransformPort query param so the gateway can route them.
+// OPTIONAL self-host runner. On Vercel use vercel.json crons instead (see
+// PRODUCTION.md). Requires CRON_SECRET (same value as the app) and
+// WORKER_BASE_URL (the app's public https URL, or http://localhost:3000 for local).
 
-const PORT = 3004;
-const APP_PORT = 3000;
-const CRON_SECRET = process.env.CRON_SECRET ?? "yoga-dev-cron-secret";
-const BASE = process.env.WORKER_BASE_URL ?? `http://localhost:${APP_PORT}`;
+const PORT = Number(process.env.WORKER_PORT ?? 3004);
+const CRON_SECRET = process.env.CRON_SECRET;
+const BASE = process.env.WORKER_BASE_URL;
+if (!CRON_SECRET) {
+  console.error("[worker] CRON_SECRET is required. Refusing to start.");
+  process.exit(1);
+}
+if (!BASE) {
+  console.error("[worker] WORKER_BASE_URL is required (e.g. https://your-app.vercel.app). Refusing to start.");
+  process.exit(1);
+}
 
 // Schedule table. `intervalMs` is the time between runs; `jitterMs` is the
 // randomised offset so multiple worker instances don't synchronise.
@@ -37,7 +44,7 @@ const JOBS = [
   },
   {
     name: "generate",
-    intervalMs: 5 * 60 * 1000, // every 5 minutes
+    intervalMs: 15 * 60 * 1000, // every 15 minutes
     jitterMs: 30 * 1000,
     lastRunAt: 0,
   },
@@ -46,14 +53,15 @@ const JOBS = [
 type JobName = (typeof JOBS)[number]["name"];
 
 async function callWorker(job: JobName) {
-  const url = `${BASE}/api/workers/run?XTransformPort=${APP_PORT}&secret=${encodeURIComponent(
-    CRON_SECRET
-  )}&job=${job}`;
+  const url = `${BASE}/api/workers/run?job=${job}`;
   const started = Date.now();
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${CRON_SECRET}`,
+      },
       body: JSON.stringify({ job }),
     });
     const text = await res.text();
@@ -107,6 +115,7 @@ const startedAt = Date.now();
 
 const server = Bun.serve({
   port: PORT,
+  hostname: "127.0.0.1",
   async fetch(req) {
     const url = new URL(req.url);
     if (url.pathname === "/health") {
@@ -175,4 +184,4 @@ setInterval(() => {
   console.log(`[worker] heartbeat uptime=${uptime}s`);
 }, 60 * 1000);
 
-console.log(`[worker] server:`, server.url?.toString() ?? `http://localhost:${PORT}`);
+console.log(`[worker] server:`, server.url?.toString() ?? `http://localhost:${PORT}`); // local log only
