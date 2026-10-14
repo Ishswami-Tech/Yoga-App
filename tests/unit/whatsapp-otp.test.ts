@@ -9,7 +9,7 @@ describe("verify_account OTP message", () => {
     expect(OTP_TEMPLATE_LANGUAGE).toBe("en_US");
   });
 
-  test("sends five body variables with the code as the fourth and no button", () => {
+  test("sends five body variables (code is the fourth) plus the required copy-code button parameter", () => {
     const components = buildOtpComponents("123456", APP);
     expect(components).toEqual([
       {
@@ -22,6 +22,7 @@ describe("verify_account OTP message", () => {
           { type: "text", text: APP },
         ],
       },
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: "123456" }] },
     ]);
   });
 });
