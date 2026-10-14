@@ -52,19 +52,24 @@ export async function GET(req: NextRequest) {
         createdAt: true,
       },
     });
-    // Attach membership summary.
-    const withMembership = await Promise.all(
-      users.map(async (u) => {
-        const activeSub = await db.subscription.findFirst({
-          where: { userId: u.id, status: "ACTIVE" },
-        });
-        return {
-          ...u,
-          membershipStatus: activeSub ? "ACTIVE" : "NONE",
-          membershipEnd: activeSub?.endDate ?? null,
-        };
-      })
-    );
+    // Attach membership summary with ONE batched query (a per-user query here used to open up to
+    // 200 parallel connections and exhaust the pool).
+    const activeSubs = users.length
+      ? await db.subscription.findMany({
+          where: { userId: { in: users.map((u) => u.id) }, status: "ACTIVE" },
+          select: { userId: true, endDate: true },
+          orderBy: { createdAt: "asc" },
+        })
+      : [];
+    const activeByUser = new Map<string, Date | null>();
+    for (const sub of activeSubs) {
+      if (!activeByUser.has(sub.userId)) activeByUser.set(sub.userId, sub.endDate);
+    }
+    const withMembership = users.map((u) => ({
+      ...u,
+      membershipStatus: activeByUser.has(u.id) ? "ACTIVE" : "NONE",
+      membershipEnd: activeByUser.get(u.id) ?? null,
+    }));
     return NextResponse.json({ items: withMembership });
   });
 }

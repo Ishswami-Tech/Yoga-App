@@ -18,3 +18,18 @@ export function normalizeEmail(input: string | null | undefined): string | null 
   if (isPlaceholderEmail(email)) return null;
   return email;
 }
+
+export type EmailSignInUser = { status: string; emailVerified: boolean };
+export type EmailSignInDecision = "ok" | "disabled" | "unverified_claim";
+
+/**
+ * May an emailed code sign into an existing account with this address?
+ * An address typed into a profile but never verified is only a claim: whoever receives a code for
+ * it must NOT be signed into that account (otherwise typing someone else's address would hand them
+ * the account). Such accounts are entered with their WhatsApp number instead.
+ */
+export function emailSignInDecision(user: EmailSignInUser): EmailSignInDecision {
+  if (user.status !== "ACTIVE") return "disabled";
+  if (!user.emailVerified) return "unverified_claim";
+  return "ok";
+}

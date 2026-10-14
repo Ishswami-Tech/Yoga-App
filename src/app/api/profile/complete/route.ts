@@ -12,24 +12,42 @@ const EMAIL_TAKEN = "This email is already registered. Use a different email.";
 
 // POST /api/profile/complete
 //
-// Finishes the profile of a phone-only signup (name, real email, accepted terms). Idempotent:
-// calling it again just updates name/email the same way.
+// Finishes the profile (name, accepted terms, and a real email when the account only has the
+// phone-signup placeholder). Requires a verified WhatsApp number first, whatever the sign-in method.
+// Idempotent: calling it again just updates name/email the same way.
 export async function POST(req: NextRequest) {
   return run(async () => {
     const user = await requireAuth();
     const body = await req.json().catch(() => ({}));
     const parsed = profileCompleteSchema.safeParse(body);
     if (!parsed.success) return fromZodError(parsed.error);
-    const { name, email } = parsed.data;
+    const { name } = parsed.data;
 
-    const owner = await db.user.findUnique({ where: { email }, select: { id: true } });
-    if (owner && owner.id !== user.id) return fail(EMAIL_TAKEN, 409, { code: "EMAIL_TAKEN" });
+    if (!user.whatsappNumber) {
+      return fail("Please verify your WhatsApp number first.", 409, { code: "PHONE_REQUIRED" });
+    }
+
+    // Required only while the account still has the placeholder address.
+    if (user.emailIsPlaceholder && !parsed.data.email) {
+      return fail("Validation failed", 422, {
+        code: "VALIDATION",
+        details: [{ path: ["email"], message: "Enter a valid email address" }],
+      });
+    }
+    const newEmail =
+      parsed.data.email && parsed.data.email !== user.email.toLowerCase() ? parsed.data.email : undefined;
+
+    if (newEmail) {
+      const owner = await db.user.findUnique({ where: { email: newEmail }, select: { id: true } });
+      if (owner && owner.id !== user.id) return fail(EMAIL_TAKEN, 409, { code: "EMAIL_TAKEN" });
+    }
 
     let updated;
     try {
       updated = await db.user.update({
         where: { id: user.id },
-        data: { name, email, profileCompletedAt: new Date() },
+        // A changed address is unverified until the owner proves it.
+        data: { name, profileCompletedAt: new Date(), ...(newEmail ? { email: newEmail, emailVerified: false } : {}) },
       });
     } catch (err) {
       // Lost a race with another account claiming the same address.

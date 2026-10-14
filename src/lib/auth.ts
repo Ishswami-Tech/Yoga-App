@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { cookies } from "next/headers";
 import { randomBytes } from "crypto";
+import { isPlaceholderEmail } from "@/lib/email";
 
 export const SESSION_COOKIE = "yoga_session";
 export const SESSION_DAYS = 30;
@@ -44,6 +45,11 @@ export type AuthUser = {
   whatsappNumber: string | null;
   /** True once a phone-only signup finished the profile dialog. Always true for staff. */
   profileCompleted: boolean;
+  /** A WhatsApp-verified number is on the account (every account needs one to use the app). */
+  phoneVerified: boolean;
+  /** The email is the reserved placeholder of a phone-only signup, not a real mailbox. */
+  emailIsPlaceholder: boolean;
+  emailVerified: boolean;
 };
 
 type UserRow = {
@@ -54,6 +60,7 @@ type UserRow = {
   status: string;
   phone: string | null;
   whatsappNumber: string | null;
+  emailVerified: boolean;
   profileCompletedAt: Date | null;
 };
 
@@ -67,6 +74,9 @@ export function toAuthUser(user: UserRow): AuthUser {
     phone: user.phone,
     whatsappNumber: user.whatsappNumber,
     profileCompleted: user.profileCompletedAt !== null || user.role !== "STUDENT",
+    phoneVerified: user.whatsappNumber !== null,
+    emailIsPlaceholder: isPlaceholderEmail(user.email),
+    emailVerified: user.emailVerified,
   };
 }
 

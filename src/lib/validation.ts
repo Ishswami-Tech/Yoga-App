@@ -14,16 +14,20 @@ export const profileSchema = z.object({
 // lowercased) and must be a real address, never the reserved placeholder domain.
 export const profileCompleteSchema = z.object({
   name: z.string().trim().min(2, "Please enter your name").max(80, "Name is too long"),
+  // Optional: the route requires it only when the account still has a placeholder email.
+  // An empty string counts as "not provided".
   email: z
     .string()
     .transform((v, ctx) => {
+      if (v.trim() === "") return undefined;
       const email = normalizeEmail(v);
       if (!email) {
         ctx.addIssue({ code: "custom", message: "Enter a valid email address" });
         return z.NEVER;
       }
       return email;
-    }),
+    })
+    .optional(),
   acceptTerms: z.literal(true, { error: "You must accept the terms to continue" }),
 });
 

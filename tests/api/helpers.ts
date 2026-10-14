@@ -27,7 +27,7 @@ export function testPhone(): string {
 }
 
 /** Plants a known code for `phone` (E.164 with +) and returns it. */
-export async function plantOtp(phone: string, purpose: "LOGIN" | "REGISTER" = "LOGIN"): Promise<string> {
+export async function plantOtp(phone: string, purpose: "LOGIN" | "REGISTER" | "LINK" = "LOGIN"): Promise<string> {
   const secret = process.env.AUTH_SECRET;
   if (!secret) throw new Error("AUTH_SECRET must be set for API tests");
   const digits = phone.replace(/\D/g, "");
@@ -127,4 +127,54 @@ export async function api(
     json = text;
   }
   return { status: res.status, json, res };
+}
+
+export const TEST_EMAIL_DOMAIN = "vy-test.example";
+
+export function testEmail(): string {
+  return `t${Date.now()}${Math.floor(Math.random() * 1e6)}@${TEST_EMAIL_DOMAIN}`;
+}
+
+/** Plants a known email code (same HMAC scheme as src/lib/providers/email-otp.ts) and returns it. */
+export async function plantEmailOtp(email: string): Promise<string> {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) throw new Error("AUTH_SECRET must be set for API tests");
+  const code = "123456";
+  await db.emailOtpCode.updateMany({ where: { email, consumedAt: null }, data: { consumedAt: new Date() } });
+  await db.emailOtpCode.create({
+    data: {
+      email,
+      codeHash: createHmac("sha256", secret).update(`email-otp:${email}:${code}`).digest("hex"),
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    },
+  });
+  return code;
+}
+
+export async function postJson(
+  path: string,
+  body: unknown,
+  cookie = "",
+): Promise<{ status: number; json: any; res: Response; cookie: string }> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      origin: BASE,
+      "x-forwarded-for": `10.${rnd()}.${rnd()}.${rnd()}`,
+      ...(cookie ? { cookie } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const setCookie = res.headers
+    .getSetCookie()
+    .map((c) => c.split(";")[0])
+    .join("; ");
+  return { status: res.status, json: await res.json().catch(() => null), res, cookie: setCookie };
+}
+
+/** Email sign-in with a planted code; creates a phone-less STUDENT for an unknown address. */
+export async function signInWithEmail(email: string) {
+  const code = await plantEmailOtp(email);
+  return postJson("/api/auth/email/verify", { email, code });
 }

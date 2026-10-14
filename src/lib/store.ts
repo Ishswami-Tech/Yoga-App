@@ -10,6 +10,11 @@ export type SessionUser = {
   role: Exclude<Role, null>;
   /** false only for a new student who has not finished the profile dialog. */
   profileCompleted?: boolean;
+  /** true once a WhatsApp code was verified for this account's phone. */
+  phoneVerified?: boolean;
+  /** true while the email is a generated placeholder (phone-only sign-up). */
+  emailIsPlaceholder?: boolean;
+  emailVerified?: boolean;
 };
 
 export type MembershipSummary = {

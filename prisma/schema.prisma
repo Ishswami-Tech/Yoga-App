@@ -367,3 +367,19 @@ model OtpCode {
   @@index([ip, createdAt])
   @@index([expiresAt])
 }
+
+// Email sign-in codes. Only an HMAC of the code is stored (see lib/providers/email-otp.ts).
+model EmailOtpCode {
+  id         String    @id @default(cuid())
+  email      String // normalized, lowercase
+  codeHash   String
+  ip         String?
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+  @@index([expiresAt])
+}

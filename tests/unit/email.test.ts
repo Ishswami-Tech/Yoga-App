@@ -26,3 +26,18 @@ describe("isPlaceholderEmail", () => {
     expect(isPlaceholderEmail("real@example.com")).toBe(false);
   });
 });
+
+import { emailSignInDecision } from "@/lib/email";
+
+describe("emailSignInDecision", () => {
+  test("verified active accounts may sign in with an emailed code", () => {
+    expect(emailSignInDecision({ status: "ACTIVE", emailVerified: true })).toBe("ok");
+  });
+  test("an unverified claim never signs in (prevents pre-account takeover)", () => {
+    expect(emailSignInDecision({ status: "ACTIVE", emailVerified: false })).toBe("unverified_claim");
+  });
+  test("disabled accounts are refused whatever the email state", () => {
+    expect(emailSignInDecision({ status: "DISABLED", emailVerified: true })).toBe("disabled");
+    expect(emailSignInDecision({ status: "DISABLED", emailVerified: false })).toBe("disabled");
+  });
+});

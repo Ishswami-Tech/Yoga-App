@@ -38,7 +38,8 @@ export function decideSendLimit(c: {
   );
 }
 
-export type OtpPurpose = "LOGIN" | "REGISTER";
+// LINK = a signed-in user proving ownership of a WhatsApp number (profile/phone). Same limits.
+export type OtpPurpose = "LOGIN" | "REGISTER" | "LINK";
 
 function hashCode(phone: string, code: string): string {
   return createHmac("sha256", requireAuthSecret()).update(`otp:${phone}:${code}`).digest("hex");

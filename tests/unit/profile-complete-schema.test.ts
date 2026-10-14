@@ -14,9 +14,15 @@ describe("profileCompleteSchema", () => {
     expect(profileCompleteSchema.safeParse({ ...good, name: "x".repeat(80) }).success).toBe(true);
   });
   test("rejects invalid and placeholder emails", () => {
-    for (const email of ["", "nope", "a@b", "a..b@example.com", "919000000001@phone.vishwayog.invalid"]) {
+    for (const email of ["nope", "a@b", "a..b@example.com", "919000000001@phone.vishwayog.invalid"]) {
       expect(profileCompleteSchema.safeParse({ ...good, email }).success).toBe(false);
     }
+  });
+  test("email is optional: absent or blank becomes undefined", () => {
+    const { email: _omit, ...noEmail } = good;
+    expect(profileCompleteSchema.parse(noEmail)).toEqual({ name: "Asha Rao", email: undefined, acceptTerms: true });
+    expect(profileCompleteSchema.parse({ ...good, email: "   " }).email).toBeUndefined();
+    expect(profileCompleteSchema.parse({ ...good, email: "" }).email).toBeUndefined();
   });
   test("acceptTerms must be literally true", () => {
     for (const acceptTerms of [false, "true", 1, undefined]) {
