@@ -44,10 +44,16 @@ export async function POST(req: NextRequest) {
       return fail("Invalid checkout request", 422, { code: "VALIDATION" });
     }
 
-    const profile = await db.user.findUnique({ where: { id: user.id }, select: { phone: true } });
+    const profile = await db.user.findUnique({ where: { id: user.id }, select: { phone: true, whatsappNumber: true } });
     try {
       return await startCheckout({
-        user: { id: user.id, email: user.email, name: user.name, phone: profile?.phone },
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          phone: profile?.phone,
+          whatsappNumber: profile?.whatsappNumber,
+        },
         provider: parsed.data.provider,
         billing: parsed.data.billing,
       });

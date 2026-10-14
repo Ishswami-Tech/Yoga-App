@@ -4,7 +4,17 @@
 
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
-import { createBridgeUrl, loadBridgeConfig } from "@/lib/payments/bridge";
+import { APP_NAME } from "@/lib/brand";
+import { isPlaceholderEmail } from "@/lib/email";
+import {
+  BRIDGE_PAYMENT_NOTE,
+  createBridgeUrl,
+  encryptBridgeCustomer,
+  loadBridgeConfig,
+  type BridgeConfig,
+} from "@/lib/payments/bridge";
+import { normalizePhone, toCanonical } from "@/lib/phone";
+import { SITE_URL } from "@/lib/seo";
 import { computeCoverage } from "@/lib/payments/coverage";
 import { getGateways } from "@/lib/payments/gateways";
 import type { GatewayName } from "@/lib/payments/types";
@@ -28,6 +38,32 @@ export class CheckoutError extends Error {
 const SETTLE_TX_OPTIONS = { maxWait: 10_000, timeout: 15_000 } as const;
 
 const PLAN_DESCRIPTION = "Yoga Membership - Monthly";
+const PLACEHOLDER_NAME = "New student";
+
+type CheckoutUser = {
+  id: string;
+  email: string;
+  name: string;
+  phone?: string | null;
+  whatsappNumber?: string | null;
+};
+
+// Branding and encrypted contact prefill shown in the gateway window (see bridge.ts).
+function bridgeDisplayFields(bridge: BridgeConfig, user: CheckoutUser) {
+  const digits = normalizePhone(user.whatsappNumber) ?? normalizePhone(user.phone);
+  const name = user.name.trim();
+  const customerEnc = encryptBridgeCustomer(bridge.secret, {
+    ...(name && name !== PLACEHOLDER_NAME ? { name } : {}),
+    ...(user.email && !isPlaceholderEmail(user.email) ? { email: user.email } : {}),
+    ...(digits ? { contact: toCanonical(digits) } : {}),
+  });
+  return {
+    displayName: APP_NAME,
+    logoUrl: `${SITE_URL}/logo-mark.png`,
+    note: BRIDGE_PAYMENT_NOTE,
+    ...(customerEnc ? { customerEnc } : {}),
+  };
+}
 
 export function getCheckoutOptions(): {
   bridgeConfigured: boolean;
@@ -44,7 +80,7 @@ export function getCheckoutOptions(): {
 }
 
 export async function startCheckout(opts: {
-  user: { id: string; email: string; name: string; phone?: string | null };
+  user: CheckoutUser;
   provider: GatewayName;
   billing: BillingType;
 }): Promise<{ bridgeUrl: string }> {
@@ -72,6 +108,7 @@ export async function startCheckout(opts: {
         displayAmount: (subscription.amount / 100).toFixed(2),
         razorpayKeyId: process.env.RAZORPAY_KEY_ID?.trim(),
         razorpayMode: "subscription",
+        ...bridgeDisplayFields(bridge, opts.user),
       }),
     };
   }
@@ -120,6 +157,7 @@ export async function startCheckout(opts: {
       description: PLAN_DESCRIPTION,
       displayAmount: (amountPaise / 100).toFixed(2),
       ...created.checkout,
+      ...bridgeDisplayFields(bridge, opts.user),
     }),
   };
 }

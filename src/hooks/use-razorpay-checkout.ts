@@ -46,6 +46,9 @@ declare global {
   }
 }
 
+// Same sentence as BRIDGE_PAYMENT_NOTE (bridge.ts is server-only: it uses node:crypto).
+const PAYMENT_NOTE = `Payments for ${APP_NAME} are securely processed by Ishswami Tech.`;
+
 const CHECKOUT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
 
 function loadCheckoutScript(): Promise<boolean> {
@@ -180,7 +183,8 @@ export function useRazorpayCheckout(opts: {
       key: created.keyId,
       subscription_id: created.subscriptionId,
       name: APP_NAME,
-      description: optsRef.current.description,
+      description: `${optsRef.current.description} - ${PAYMENT_NOTE}`,
+      image: `${window.location.origin}/logo-mark.png`,
       prefill: {
         name: user?.name ?? undefined,
         email: user?.email ?? undefined,

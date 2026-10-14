@@ -48,7 +48,7 @@ export function AuthModal() {
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) { setMethod("phone"); closeAuth(); } }}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto scroll-soft rounded-[2rem] bg-card border-0 shadow-lift">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto overflow-x-hidden scroll-soft rounded-[2rem] bg-card border-0 shadow-lift">
         <Mandala size={150} className="pointer-events-none absolute -right-12 -top-12 opacity-70" />
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
