@@ -18,7 +18,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiPost } from "@/lib/api-client";
 import { authClient } from "@/lib/better-auth-client";
 import { Moon, Sun, LogOut, ChevronDown, User as UserIcon } from "lucide-react";
-import { LotusMark, Mandala } from "@/components/yoga/art/sunrise";
+import { Mandala } from "@/components/yoga/art/sunrise";
+import { BrandLogo } from "@/components/yoga/brand-logo";
 import { useTheme } from "next-themes";
 import { usePlan } from "@/hooks/use-plan";
 import { toast } from "sonner";
@@ -76,7 +77,7 @@ export function AppShell({
       <header className="sticky top-0 z-40 bg-secondary/90 backdrop-blur shadow-[0_6px_20px_-12px_rgb(59_31_26/0.35)]">
         <div className="flex h-16 px-4 items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <LotusMark size={40} className="shrink-0" />
+            <BrandLogo size={40} className="shrink-0" priority />
             <div className="min-w-0">
               <p className="font-display text-lg font-semibold tracking-tight truncate">
                 {APP_NAME}

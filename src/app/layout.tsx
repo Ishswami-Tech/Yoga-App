@@ -36,7 +36,6 @@ export const metadata: Metadata = {
   creator: APP_NAME,
   publisher: APP_NAME,
   alternates: { canonical: "/" },
-  icons: { icon: "/logo.svg", shortcut: "/logo.svg", apple: "/logo.svg" },
   openGraph: {
     type: "website",
     url: "/",

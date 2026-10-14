@@ -12,7 +12,7 @@ import { createHash } from "crypto";
 import { OTP_TEMPLATE_LANGUAGE, OTP_TEMPLATE_NAME, buildOtpComponents } from "./whatsapp-otp";
 
 export const WHATSAPP_TEMPLATE_NAME = "yoga_class_reminder_v1";
-export const WHATSAPP_LANGUAGE = "en";
+export const WHATSAPP_LANGUAGE = "en_US"; // must match the approved template language (English US)
 
 export type SendReminderInput = {
   toWhatsapp: string;

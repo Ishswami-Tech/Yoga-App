@@ -10,7 +10,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Moon, Sun, Menu } from "lucide-react";
-import { LotusMark, HillBand } from "@/components/yoga/art/sunrise";
+import { HillBand } from "@/components/yoga/art/sunrise";
+import { BrandLogo } from "@/components/yoga/brand-logo";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 
@@ -29,7 +30,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
             className="flex items-center gap-3 group min-h-11"
             aria-label={`${APP_NAME} home`}
           >
-            <LotusMark size={40} className="group-hover:scale-105 transition" />
+            <BrandLogo size={40} className="group-hover:scale-105 transition" priority />
             <span className="font-display text-2xl font-semibold tracking-tight">
               <span className="text-brand-gradient">{APP_NAME}</span>
             </span>
@@ -107,7 +108,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
         <div className="container mx-auto px-4 py-10 grid gap-8 md:grid-cols-4">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <LotusMark size={36} />
+              <BrandLogo size={36} plate />
               <span className="font-display text-xl font-semibold">{APP_NAME}</span>
             </div>
             <p className="text-sm text-[#FFE4C4]">

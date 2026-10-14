@@ -20,7 +20,8 @@ import {
   Clock,
 } from "lucide-react";
 import { PublicShell } from "./shell";
-import { LotusMark, Mandala, SunFan } from "../art/sunrise";
+import { Mandala, SunFan } from "../art/sunrise";
+import { BrandLogo } from "../brand-logo";
 
 export function Checkout() {
   const plan = usePlan();
@@ -63,7 +64,7 @@ export function Checkout() {
         <section className="container mx-auto px-4 py-16">
           <div className="max-w-md mx-auto text-center">
             <div className="mx-auto mb-5 w-fit">
-              <LotusMark size={64} />
+              <BrandLogo size={64} />
             </div>
             <h1 className="font-display text-3xl font-semibold mb-2">Sign in to subscribe</h1>
             <p className="text-muted-foreground mb-6">

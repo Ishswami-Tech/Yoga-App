@@ -23,7 +23,6 @@ import {
   ShieldCheck,
   Clock,
   Users,
-  Sparkles,
   IndianRupee,
   Check,
   ArrowRight,
@@ -31,6 +30,7 @@ import {
   Repeat,
 } from "lucide-react";
 import { SunriseHero, Mandala } from "@/components/yoga/art/sunrise";
+import { BrandLogo } from "@/components/yoga/brand-logo";
 
 const features = [
   {
@@ -190,9 +190,7 @@ export function Landing() {
               <div className="rounded-[2rem] bg-card shadow-lift overflow-hidden md:absolute md:-bottom-8 md:-right-3 md:w-64 md:pointer-events-auto">
                 <div className="bg-emerald-700 text-white px-4 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-white/20 grid place-items-center">
-                      <Sparkles className="h-4 w-4" />
-                    </div>
+                    <BrandLogo size={24} plate />
                     <div>
                       <p className="text-xs font-semibold">{APP_NAME}</p>
                       <p className="text-[10px] opacity-80">online</p>

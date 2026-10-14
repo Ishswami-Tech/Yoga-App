@@ -5,6 +5,7 @@ import { run, notFound, fail } from "@/lib/api";
 import { istDateString, prettyTime } from "@/lib/services/scheduling";
 
 import { APP_NAME, SUPPORT_EMAIL, SUPPORT_PHONE } from "@/lib/brand";
+import { SITE_URL } from "@/lib/seo";
 export const runtime = "nodejs";
 
 // Payment receipt — returns a self-contained, print-optimised HTML page
@@ -120,9 +121,8 @@ function renderReceipt(opts: {
   }
   .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
   .brand-mark {
-    width: 36px; height: 36px; border-radius: 50%;
-    background: rgba(255,255,255,0.15); display: grid; place-items: center;
-    font-size: 18px;
+    width: 44px; height: 44px; border-radius: 50%; padding: 4px; box-sizing: border-box;
+    background: #FFF4E0; object-fit: contain;
   }
   .brand-name { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
   .receipt-title { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
@@ -179,7 +179,7 @@ function renderReceipt(opts: {
   <div class="receipt">
     <div class="receipt-head">
       <div class="brand">
-        <div class="brand-mark">🧘</div>
+        <img class="brand-mark" src="${SITE_URL}/logo-mark.png" alt="" width="44" height="44" />
         <div class="brand-name">${APP_NAME}</div>
       </div>
       <div class="receipt-title">Payment Receipt</div>

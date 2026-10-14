@@ -30,7 +30,7 @@ export function organizationJsonLd(): Record<string, unknown> {
         "@id": `${SITE_URL}/#organization`,
         name: APP_NAME,
         url: SITE_URL,
-        logo: `${SITE_URL}/logo.svg`,
+        logo: `${SITE_URL}/logo.png`,
       },
       {
         "@type": "WebSite",
