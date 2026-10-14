@@ -1,5 +1,5 @@
 "use client";
-import { APP_NAME } from "@/lib/brand";
+import { APP_NAME, WHATSAPP_SENDER_NAME } from "@/lib/brand";
 import { usePlan } from "@/hooks/use-plan";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api-client";
@@ -30,7 +30,6 @@ import {
   Repeat,
 } from "lucide-react";
 import { SunriseHero, Mandala } from "@/components/yoga/art/sunrise";
-import { BrandLogo } from "@/components/yoga/brand-logo";
 
 const features = [
   {
@@ -190,9 +189,10 @@ export function Landing() {
               <div className="rounded-[2rem] bg-card shadow-lift overflow-hidden md:absolute md:-bottom-8 md:-right-3 md:w-64 md:pointer-events-auto">
                 <div className="bg-emerald-700 text-white px-4 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <BrandLogo size={24} plate />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/ishswami-mark.png" alt="" width={28} height={28} className="h-7 w-7 rounded-full bg-white object-contain p-0.5" />
                     <div>
-                      <p className="text-xs font-semibold">{APP_NAME}</p>
+                      <p className="text-xs font-semibold">{WHATSAPP_SENDER_NAME}</p>
                       <p className="text-[10px] opacity-80">online</p>
                     </div>
                   </div>
