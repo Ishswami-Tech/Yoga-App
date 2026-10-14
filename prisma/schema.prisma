@@ -28,6 +28,7 @@ model User {
   role           String   @default("STUDENT") // STUDENT | INSTRUCTOR | ADMIN
   status         String   @default("ACTIVE")  // ACTIVE | DISABLED
   passwordHash   String   @default("")
+  profileCompletedAt DateTime? // null = phone-only signup that still has to complete its profile
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

@@ -8,6 +8,8 @@ export type SessionUser = {
   email: string;
   name: string;
   role: Exclude<Role, null>;
+  /** false only for a new student who has not finished the profile dialog. */
+  profileCompleted?: boolean;
 };
 
 export type MembershipSummary = {

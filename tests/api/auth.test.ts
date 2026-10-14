@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { ACCOUNTS, BASE, api, plantOtp, registerStudent, signIn, testPhone, verifyWith } from "./helpers";
+import { PrismaClient } from "@prisma/client";
+import { ACCOUNTS, BASE, api, plantOtp, postProfileComplete, registerStudent, signIn, testPhone, uniqueEmail, verifyWith } from "./helpers";
+
+const db = new PrismaClient();
 
 describe("auth (WhatsApp OTP only)", () => {
   test("valid code signs in and /me returns the user", async () => {
@@ -31,15 +34,18 @@ describe("auth (WhatsApp OTP only)", () => {
 
   test("send gives a neutral response for unknown numbers and never returns a code", async () => {
     const r = await api("anon", "POST", "/api/auth/otp/send", { phone: testPhone() });
-    expect(r.status).toBe(200);
+    // 200 when WhatsApp is configured; 503 ("unavailable") when this environment has no Meta credentials.
+    expect([200, 503]).toContain(r.status);
     expect(JSON.stringify(r.json)).not.toMatch(/devCode|\b\d{6}\b/);
   });
 
-  test("verify for an unregistered number fails without creating an account", async () => {
+  test("a LOGIN-purpose code for an unknown number does not create an account", async () => {
     const phone = testPhone();
-    const code = await plantOtp(phone);
-    const { res } = await verifyWith(phone, code);
+    const code = await plantOtp(phone, "LOGIN");
+    const { res, cookie } = await verifyWith(phone, code);
     expect(res.status).toBe(401);
+    expect(cookie).not.toContain("yoga_session");
+    expect(await db.user.count({ where: { whatsappNumber: phone } })).toBe(0);
   });
 
   test("/me without a session returns no user", async () => {
@@ -59,19 +65,78 @@ describe("auth (WhatsApp OTP only)", () => {
     expect((await me.json()).user ?? null).toBeNull();
   });
 
-  test("registration creates a STUDENT only after the code verifies", async () => {
-    const { res, cookie } = await registerStudent("API Test");
+  test("a new number with a REGISTER code creates a phone-only STUDENT with profileCompleted=false", async () => {
+    const { phone, res, cookie } = await registerStudent();
     expect(res.status).toBe(200);
+    expect((await res.json()).user.profileCompleted).toBe(false);
     const me = await fetch(`${BASE}/api/auth/me`, { headers: { cookie } });
-    expect((await me.json()).user.role).toBe("STUDENT");
+    const { user } = await me.json();
+    expect(user.role).toBe("STUDENT");
+    expect(user.profileCompleted).toBe(false);
+    expect(user.name).toBe("New student");
+    expect(user.email).toBe(`${phone.replace(/\D/g, "")}@phone.vishwayog.invalid`);
   });
 
   test("registration cannot self-assign a role or status", async () => {
     const phone = testPhone();
     const code = await plantOtp(phone, "REGISTER");
-    const { cookie } = await verifyWith(phone, code, { mode: "register", name: "Esc", role: "ADMIN", status: "ACTIVE" });
+    const { cookie } = await verifyWith(phone, code, { role: "ADMIN", status: "ACTIVE", name: "Esc" });
     const me = await fetch(`${BASE}/api/auth/me`, { headers: { cookie } });
-    expect((await me.json()).user?.role).toBe("STUDENT");
+    const { user } = await me.json();
+    expect(user?.role).toBe("STUDENT");
+    expect(user?.name).toBe("New student");
+  });
+
+  test("existing users sign in with profileCompleted=true", async () => {
+    const { res } = await signIn(ACCOUNTS.student);
+    expect((await res.json()).user.profileCompleted).toBe(true);
+  });
+
+  describe("POST /api/profile/complete", () => {
+    test("requires a session", async () => {
+      const r = await postProfileComplete("", { name: "Asha Rao", email: uniqueEmail(), acceptTerms: true });
+      expect(r.status).toBe(401);
+    });
+
+    test("validates input", async () => {
+      const { cookie } = await registerStudent();
+      const ok = { name: "Asha Rao", email: uniqueEmail(), acceptTerms: true };
+      for (const bad of [
+        { ...ok, name: "A" },
+        { ...ok, email: "not-an-email" },
+        { ...ok, email: "919000000099@phone.vishwayog.invalid" },
+        { ...ok, acceptTerms: false },
+        { name: ok.name, email: ok.email },
+      ]) {
+        const r = await postProfileComplete(cookie, bad);
+        expect(r.status).toBe(422);
+        expect(r.json.code).toBe("VALIDATION");
+      }
+    });
+
+    test("completes the profile and flips profileCompleted to true", async () => {
+      const { cookie } = await registerStudent();
+      const email = uniqueEmail();
+      const r = await postProfileComplete(cookie, { name: "  Asha Rao ", email: email.toUpperCase(), acceptTerms: true });
+      expect(r.status).toBe(200);
+      expect(r.json.user).toMatchObject({ name: "Asha Rao", email, role: "STUDENT", profileCompleted: true });
+      const me = await fetch(`${BASE}/api/auth/me`, { headers: { cookie } });
+      expect((await me.json()).user.profileCompleted).toBe(true);
+      // Idempotent: a second call updates name/email the same way.
+      const again = await postProfileComplete(cookie, { name: "Asha R", email, acceptTerms: true });
+      expect(again.status).toBe(200);
+      expect(again.json.user.name).toBe("Asha R");
+    });
+
+    test("rejects an email owned by another account", async () => {
+      const a = await registerStudent();
+      const b = await registerStudent();
+      const email = uniqueEmail();
+      expect((await postProfileComplete(a.cookie, { name: "Owner One", email, acceptTerms: true })).status).toBe(200);
+      const r = await postProfileComplete(b.cookie, { name: "Other Two", email, acceptTerms: true });
+      expect(r.status).toBe(409);
+      expect(r.json.code).toBe("EMAIL_TAKEN");
+    });
   });
 
   test("removed sign-in methods are gone", async () => {

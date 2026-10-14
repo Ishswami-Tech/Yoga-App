@@ -14,6 +14,9 @@ export async function POST(req: NextRequest) {
     if (user.role !== "STUDENT") {
       return fail("Only students can subscribe", 403, { code: "FORBIDDEN" });
     }
+    if (!user.profileCompleted) {
+      return fail("Please complete your profile before subscribing", 403, { code: "PROFILE_INCOMPLETE" });
+    }
 
     return createSubscriptionForUser({
       userId: user.id,

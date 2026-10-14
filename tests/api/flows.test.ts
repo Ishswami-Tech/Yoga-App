@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { BASE, api, registerStudent } from "./helpers";
 
 async function freshStudent() {
-  const { phone, cookie } = await registerStudent("Flow Tester");
+  const { phone, cookie } = await registerStudent();
   const as = async (method: string, path: string, body?: unknown) => {
     const res = await fetch(`${BASE}${path}`, {
       method,

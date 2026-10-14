@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyOtp } from "@/lib/providers/otp";
-import { createSession, setSessionCookie, AuthUser } from "@/lib/auth";
+import { createSession, setSessionCookie, toAuthUser } from "@/lib/auth";
 import { run, fail, fromZodError } from "@/lib/api";
 import { normalizePhone, phoneCandidates, toCanonical } from "@/lib/phone";
 import { clientIp, throttle } from "@/lib/rate-limit";
@@ -13,8 +13,6 @@ export const runtime = "nodejs";
 const bodySchema = z.object({
   phone: z.string().min(7).max(24),
   code: z.string().regex(/^\d{6}$/, "Code must be 6 digits"),
-  mode: z.enum(["login", "register"]).default("login"),
-  name: z.string().trim().min(2).max(80).optional(),
 });
 
 const BAD = "Incorrect or expired code. Please try again or request a new one.";
@@ -22,14 +20,16 @@ const BAD = "Incorrect or expired code. Please try again or request a new one.";
 // POST /api/auth/otp/verify
 //
 // Verifies the code and creates the session (same legacy cookie session the
-// rest of the app reads). In register mode the STUDENT account is created only
-// now, after the code verified; role and status are never client-controlled.
+// rest of the app reads). A number with no account gets a STUDENT account created only now, after
+// a REGISTER-purpose code verified (never from a LOGIN code); it carries just the phone number and
+// profileCompletedAt = null, so the app makes them complete their profile. Role and status are never
+// client-controlled.
 export async function POST(req: NextRequest) {
   return run(async () => {
     const body = await req.json().catch(() => ({}));
     const parsed = bodySchema.safeParse(body);
     if (!parsed.success) return fromZodError(parsed.error);
-    const { code, mode, name } = parsed.data;
+    const { code } = parsed.data;
 
     const phone = normalizePhone(parsed.data.phone);
     if (!phone) return fail("Enter a valid WhatsApp number", 422, { code: "INVALID_PHONE" });
@@ -49,19 +49,20 @@ export async function POST(req: NextRequest) {
     let user = await findUser();
 
     if (!user) {
-      if (mode !== "register" || result.purpose !== "REGISTER" || !name) {
+      if (result.purpose !== "REGISTER") {
         return fail(BAD, 401, { code: "OTP_FAILED" });
       }
       try {
         user = await db.user.create({
           data: {
-            name,
+            name: "New student",
             // email is required/unique in the schema; accounts are identified by phone.
             email: `${phone}@phone.vishwayog.invalid`,
             whatsappNumber: toCanonical(phone),
             phone: toCanonical(phone),
             role: "STUDENT",
             status: "ACTIVE",
+            profileCompletedAt: null,
           },
         });
       } catch (err) {
@@ -77,15 +78,7 @@ export async function POST(req: NextRequest) {
     }
 
     const token = await createSession(user.id);
-    const authUser: AuthUser = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role as AuthUser["role"],
-      status: user.status,
-      phone: user.phone,
-      whatsappNumber: user.whatsappNumber,
-    };
+    const authUser = toAuthUser(user);
 
     const res = NextResponse.json({ user: authUser });
     res.cookies.set(setSessionCookie(token));

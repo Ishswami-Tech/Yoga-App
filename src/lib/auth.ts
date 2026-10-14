@@ -42,7 +42,33 @@ export type AuthUser = {
   status: string;
   phone: string | null;
   whatsappNumber: string | null;
+  /** True once a phone-only signup finished the profile dialog. Always true for staff. */
+  profileCompleted: boolean;
 };
+
+type UserRow = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+  phone: string | null;
+  whatsappNumber: string | null;
+  profileCompletedAt: Date | null;
+};
+
+export function toAuthUser(user: UserRow): AuthUser {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role as AuthUser["role"],
+    status: user.status,
+    phone: user.phone,
+    whatsappNumber: user.whatsappNumber,
+    profileCompleted: user.profileCompletedAt !== null || user.role !== "STUDENT",
+  };
+}
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
   // 1. Try Better Auth session first
@@ -56,15 +82,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
         where: { id: baSession.user.id },
       });
       if (user && user.status === "ACTIVE") {
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role as AuthUser["role"],
-          status: user.status,
-          phone: user.phone,
-          whatsappNumber: user.whatsappNumber,
-        };
+        return toAuthUser(user);
       }
     }
   } catch {
@@ -77,15 +95,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   if (!session) return null;
   const user = await db.user.findUnique({ where: { id: session.userId } });
   if (!user || user.status !== "ACTIVE") return null;
-  return {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    role: user.role as AuthUser["role"],
-    status: user.status,
-    phone: user.phone,
-    whatsappNumber: user.whatsappNumber,
-  };
+  return toAuthUser(user);
 }
 
 export function setSessionCookie(token: string) {

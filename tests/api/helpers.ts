@@ -68,11 +68,25 @@ export async function signIn(phone: string): Promise<{ res: Response; cookie: st
   return verifyWith(phone, code);
 }
 
-export async function registerStudent(name = "Flow Tester"): Promise<{ phone: string; cookie: string; res: Response }> {
+/** New number + REGISTER code: verify creates a phone-only STUDENT (profile not completed yet). */
+export async function registerStudent(): Promise<{ phone: string; cookie: string; res: Response }> {
   const phone = testPhone();
   const code = await plantOtp(phone, "REGISTER");
-  const { res, cookie } = await verifyWith(phone, code, { mode: "register", name });
+  const { res, cookie } = await verifyWith(phone, code);
   return { phone, cookie, res };
+}
+
+export function uniqueEmail(): string {
+  return `t${Date.now()}${Math.floor(Math.random() * 1e6)}@example.com`;
+}
+
+export async function postProfileComplete(cookie: string, body: unknown): Promise<{ status: number; json: any }> {
+  const res = await fetch(`${BASE}/api/profile/complete`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: BASE, ...(cookie ? { cookie } : {}) },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, json: await res.json().catch(() => null) };
 }
 
 const cookies = new Map<string, string>();

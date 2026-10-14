@@ -46,6 +46,7 @@ async function main() {
       status: "ACTIVE",
       phone: "+919000000001",
       whatsappNumber: "+919000000001",
+      profileCompletedAt: new Date(),
     },
   });
 
@@ -60,6 +61,7 @@ async function main() {
       status: "ACTIVE",
       phone: "+919000000002",
       whatsappNumber: "+919000000002",
+      profileCompletedAt: new Date(),
     },
   });
 
@@ -102,6 +104,7 @@ async function main() {
         status: "ACTIVE",
         phone: s.whatsapp,
         whatsappNumber: s.whatsapp,
+        profileCompletedAt: new Date(),
       },
     });
 

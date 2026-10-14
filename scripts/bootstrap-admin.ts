@@ -41,7 +41,7 @@ async function main() {
     console.log(`Admin ensured (existing user ${admin.id}).`);
   } else {
     const admin = await db.user.create({
-      data: { email, name, role: "ADMIN", status: "ACTIVE", phone: whatsappNumber, whatsappNumber, emailVerified: true },
+      data: { email, name, role: "ADMIN", status: "ACTIVE", phone: whatsappNumber, whatsappNumber, emailVerified: true, profileCompletedAt: new Date() },
     });
     console.log(`Admin created (${admin.id}).`);
   }

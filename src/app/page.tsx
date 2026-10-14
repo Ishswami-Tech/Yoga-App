@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useApp, initViewFromHash, loginViewForRole } from "@/lib/store";
 import { apiGet } from "@/lib/api-client";
 import { PublicShell } from "@/components/yoga/public/shell";
+import { ProfileCompletionDialog } from "@/components/yoga/profile-completion-dialog";
 import { AuthModal } from "@/components/yoga/public/auth-modal";
 import { Landing } from "@/components/yoga/public/landing";
 import { Checkout } from "@/components/yoga/public/checkout";
@@ -62,6 +63,14 @@ export default function Page() {
 
   // Authenticated views by role.
   if (user.role === "STUDENT") {
+    // New accounts must finish their profile first; show only the blocking dialog over a plain backdrop.
+    if (user.profileCompleted === false) {
+      return (
+        <div className="min-h-screen bg-background">
+          <ProfileCompletionDialog />
+        </div>
+      );
+    }
     return <StudentApp />;
   }
   if (user.role === "INSTRUCTOR") {

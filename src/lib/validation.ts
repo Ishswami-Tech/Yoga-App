@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeEmail } from "@/lib/email";
 
 // ---------------------------------------------------------------------------
 // Auth
@@ -7,6 +8,23 @@ import { z } from "zod";
 export const profileSchema = z.object({
   name: z.string().min(2),
   phone: z.string().optional().nullable(),
+});
+
+// First-login profile completion for phone-only accounts. The email is normalised (trimmed,
+// lowercased) and must be a real address, never the reserved placeholder domain.
+export const profileCompleteSchema = z.object({
+  name: z.string().trim().min(2, "Please enter your name").max(80, "Name is too long"),
+  email: z
+    .string()
+    .transform((v, ctx) => {
+      const email = normalizeEmail(v);
+      if (!email) {
+        ctx.addIssue({ code: "custom", message: "Enter a valid email address" });
+        return z.NEVER;
+      }
+      return email;
+    }),
+  acceptTerms: z.literal(true, { error: "You must accept the terms to continue" }),
 });
 
 // ---------------------------------------------------------------------------

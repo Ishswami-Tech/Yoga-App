@@ -1,6 +1,5 @@
 "use client";
 import { APP_NAME } from "@/lib/brand";
-import { usePlan } from "@/hooks/use-plan";
 import { useEffect, useState } from "react";
 import { useApp } from "@/lib/store";
 import { apiPost } from "@/lib/api-client";
@@ -23,12 +22,9 @@ type Step = "number" | "code";
 const RESEND_SECONDS = 30;
 
 export function AuthModal() {
-  const plan = usePlan();
   const { authOpen, closeAuth, set, setView } = useApp();
-  const [mode, setMode] = useState<"login" | "register">(authOpen === "register" ? "register" : "login");
   const [step, setStep] = useState<Step>("number");
   const [loading, setLoading] = useState(false);
-  const [name, setName] = useState("");
   const [number, setNumber] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -42,25 +38,17 @@ export function AuthModal() {
 
   const digits = number.replace(/\D/g, "");
   const phone = `+91${digits}`;
-  const registering = mode === "register";
-  const numberValid = digits.length === 10 && /^[6-9]/.test(digits);
-  const canSend = numberValid && (!registering || name.trim().length >= 2);
+  const canSend = digits.length === 10 && /^[6-9]/.test(digits);
 
   const reset = () => {
-    setStep("number"); setName(""); setNumber(""); setCode(""); setError(null); setCountdown(0);
+    setStep("number"); setNumber(""); setCode(""); setError(null); setCountdown(0);
   };
-
-  const switchMode = (m: "login" | "register") => { setMode(m); setStep("number"); setCode(""); setError(null); };
 
   const sendCode = async () => {
     if (!canSend || loading) return;
     setLoading(true); setError(null);
     try {
-      await apiPost("/api/auth/otp/send", {
-        phone,
-        mode,
-        ...(registering ? { name: name.trim() } : {}),
-      });
+      await apiPost("/api/auth/otp/send", { phone });
       setStep("code"); setCode(""); setCountdown(RESEND_SECONDS);
     } catch (e: any) {
       setError(e?.message || "Couldn't send the code. Please try again.");
@@ -71,14 +59,11 @@ export function AuthModal() {
     if (value.length !== 6 || loading) return;
     setLoading(true); setError(null);
     try {
-      const res = await apiPost("/api/auth/otp/verify", {
-        phone,
-        code: value,
-        mode,
-        ...(registering ? { name: name.trim() } : {}),
-      });
+      const res = await apiPost("/api/auth/otp/verify", { phone, code: value });
       const user = res.user;
       set({ user, authOpen: null });
+      // A brand-new student must finish the profile dialog first (rendered by the page).
+      if (user?.role === "STUDENT" && user.profileCompleted === false) return;
       setView(
         user?.role === "ADMIN" ? "admin-dashboard"
         : user?.role === "INSTRUCTOR" ? "instructor-dashboard"
@@ -101,9 +86,7 @@ export function AuthModal() {
           </div>
           <DialogDescription>
             {step === "number"
-              ? registering
-                ? `Create your account · ${plan.display}/month · Cancel anytime`
-                : "Sign in with a one-time code sent to your WhatsApp"
+              ? "New or returning? Enter your WhatsApp number. We'll create your account the first time."
               : `Enter the 6-digit code we sent to +91 ${digits} on WhatsApp`}
           </DialogDescription>
         </DialogHeader>
@@ -113,12 +96,6 @@ export function AuthModal() {
             className="space-y-3"
             onSubmit={(e) => { e.preventDefault(); sendCode(); }}
           >
-            {registering && (
-              <div className="space-y-1.5">
-                <Label htmlFor="auth-name" className="text-xs">Full name</Label>
-                <Input id="auth-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoComplete="name" maxLength={80} autoFocus />
-              </div>
-            )}
             <div className="space-y-1.5">
               <Label htmlFor="auth-phone" className="text-xs">WhatsApp number</Label>
               <div className="flex items-center gap-2">
@@ -132,7 +109,7 @@ export function AuthModal() {
                   onChange={(e) => setNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   placeholder="98765 43210"
                   aria-describedby="auth-phone-hint"
-                  autoFocus={!registering}
+                  autoFocus
                 />
               </div>
               <p id="auth-phone-hint" className="text-[11px] text-muted-foreground">
@@ -143,12 +120,6 @@ export function AuthModal() {
             <Button type="submit" className="w-full bg-brand-gradient text-primary-foreground" disabled={loading || !canSend}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><MessageCircle className="h-4 w-4" /> Send code on WhatsApp</>}
             </Button>
-            <p className="text-center text-xs text-muted-foreground">
-              {registering ? "Already a member?" : "New here?"}{" "}
-              <button type="button" className="font-medium text-primary underline-offset-2 hover:underline" onClick={() => switchMode(registering ? "login" : "register")}>
-                {registering ? "Sign in" : "Create an account"}
-              </button>
-            </p>
           </form>
         )}
 

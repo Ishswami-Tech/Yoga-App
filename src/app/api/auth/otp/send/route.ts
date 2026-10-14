@@ -10,30 +10,24 @@ export const runtime = "nodejs";
 
 const bodySchema = z.object({
   phone: z.string().min(7).max(24),
-  mode: z.enum(["login", "register"]).default("login"),
-  name: z.string().trim().min(2, "Please enter your name").max(80).optional(),
 });
 
 const NEUTRAL = { ok: true, message: "If this number is registered, a code was sent." };
 
 // POST /api/auth/otp/send
 //
-// Sends a 6-digit code on WhatsApp. Works for any ACTIVE user (any role).
-// Unknown numbers get the same neutral response (no account enumeration),
-// except mode "register", which requires a name and sends a REGISTER code;
-// the account is only created after the code verifies.
+// Single sign-in / sign-up entry: sends a 6-digit code on WhatsApp. An ACTIVE user gets a LOGIN
+// code, an unknown number gets a REGISTER code (the STUDENT account is only created after the code
+// verifies), a non-ACTIVE user gets the neutral response without a send. The response is identical
+// in every non-error case, so it does not reveal whether a number is registered.
 export async function POST(req: NextRequest) {
   return run(async () => {
     const body = await req.json().catch(() => ({}));
     const parsed = bodySchema.safeParse(body);
     if (!parsed.success) return fromZodError(parsed.error);
-    const { mode, name } = parsed.data;
 
     const phone = normalizePhone(parsed.data.phone);
     if (!phone) return fail("Enter a valid WhatsApp number", 422, { code: "INVALID_PHONE" });
-    if (mode === "register" && !name) {
-      return fail("Please enter your name", 422, { code: "NAME_REQUIRED" });
-    }
 
     const ip = clientIp(req);
     // Second layer only; the OtpCode table is the authority.
@@ -52,10 +46,8 @@ export async function POST(req: NextRequest) {
     if (user) {
       if (user.status !== "ACTIVE") return NextResponse.json(NEUTRAL);
       purpose = "LOGIN";
-    } else if (mode === "register") {
-      purpose = "REGISTER";
     } else {
-      return NextResponse.json(NEUTRAL);
+      purpose = "REGISTER";
     }
 
     const result = await sendOtp({ phone, purpose, ip });
