@@ -158,7 +158,7 @@ export const whatsapp = {
       });
       const data = (await res.json().catch(() => null)) as {
         messages?: { id?: string }[];
-        error?: { code?: number; message?: string };
+        error?: { code?: number; message?: string; error_data?: { details?: string } };
       } | null;
       const id = data?.messages?.[0]?.id;
       if (!res.ok || !id) {
@@ -166,7 +166,9 @@ export const whatsapp = {
           providerMessageId: "",
           status: "FAILED",
           errorCode: String(data?.error?.code ?? res.status),
-          errorMessage: data?.error?.message ?? `WhatsApp API returned ${res.status}`,
+          errorMessage: [data?.error?.message ?? `WhatsApp API returned ${res.status}`, data?.error?.error_data?.details]
+            .filter(Boolean)
+            .join(" - "),
         };
       }
       return { providerMessageId: id, status: "SENT" };
