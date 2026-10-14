@@ -123,6 +123,9 @@ export function PublicShell({ children }: { children: ReactNode }) {
               <li><Link href="#pricing">Pricing</Link></li>
               <li><Link href="#how">How it works</Link></li>
               <li><Link href="#faq">FAQ</Link></li>
+              <li><Link href="/privacy">Privacy Policy</Link></li>
+              <li><Link href="/terms">Terms &amp; Conditions</Link></li>
+              <li><Link href="/refund-policy">Cancellation &amp; Refund Policy</Link></li>
             </ul>
           </div>
           <div>

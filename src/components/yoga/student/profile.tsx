@@ -126,14 +126,13 @@ function ProfileForm({ profile }: { profile: Profile }) {
   const { user, set } = useApp();
   const [name, setName] = useState(profile.name ?? "");
   const [phone, setPhone] = useState(profile.phone ?? "");
-  const [whatsapp, setWhatsapp] = useState(profile.whatsappNumber ?? "");
+  const whatsapp = profile.whatsappNumber ?? "";
 
   const saveMut = useMutation({
     mutationFn: () =>
       apiPatch<Profile>("/api/profile", {
         name,
         phone: phone || null,
-        whatsappNumber: whatsapp || null,
       }),
     onSuccess: (u) => {
       toast.success("Profile updated");
@@ -152,8 +151,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
 
   const dirty =
     name !== (profile.name ?? "") ||
-    phone !== (profile.phone ?? "") ||
-    whatsapp !== (profile.whatsappNumber ?? "");
+    phone !== (profile.phone ?? "");
 
   return (
     <Card className="md:col-span-2 rounded-3xl shadow-soft">
@@ -198,13 +196,14 @@ function ProfileForm({ profile }: { profile: Profile }) {
           <Input
             id="whatsapp"
             value={whatsapp}
-            onChange={(e) => setWhatsapp(e.target.value)}
+            readOnly
+            disabled
             placeholder="+91 98765 43210"
             inputMode="tel"
             autoComplete="tel"
           />
           <p className="text-xs text-muted-foreground">
-            Class reminders are sent here 15 min before each class.
+            This is your sign-in number and where class reminders go. Contact support to change it.
           </p>
         </div>
 
@@ -231,7 +230,6 @@ function ProfileForm({ profile }: { profile: Profile }) {
             onClick={() => {
               setName(profile.name ?? "");
               setPhone(profile.phone ?? "");
-              setWhatsapp(profile.whatsappNumber ?? "");
             }}
           >
             <RotateCcw className="h-4 w-4" /> Reset

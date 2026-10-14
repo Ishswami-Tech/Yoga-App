@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { profileSchema } from "@/lib/validation";
-import { run, fromZodError } from "@/lib/api";
+import { run, fromZodError, fail } from "@/lib/api";
+import { normalizePhone } from "@/lib/phone";
 import { audit } from "@/lib/services/audit";
 
 export const runtime = "nodejs";
@@ -32,12 +33,16 @@ export async function PATCH(req: NextRequest) {
     const parsed = profileSchema.safeParse(body);
     if (!parsed.success) return fromZodError(parsed.error);
     const data = parsed.data;
+    // The WhatsApp login number is never editable here (it is the sign-in identity; admins change
+    // it). `phone` is only touched when the client actually sent it, and is normalised.
+    let phone: string | null | undefined;
+    if (data.phone !== undefined) {
+      phone = data.phone ? normalizePhone(data.phone) : null;
+      if (data.phone && !phone) return fail("Enter a valid phone number", 422, { code: "INVALID_PHONE" });
+    }
     const updated = await db.user.update({
       where: { id: user.id },
-      data: {
-        name: data.name,
-        phone: data.phone ?? null,
-      },
+      data: { name: data.name, ...(phone !== undefined ? { phone } : {}) },
     });
     await audit({
       actorUserId: user.id,
