@@ -174,6 +174,14 @@ export async function settleOrder(providerOrderId: string, provider?: GatewayNam
 
   const now = new Date();
   await db.$transaction(async (tx) => {
+    // Order matters: (1) take a per-user advisory lock, (2) read the latest coversUntil, (3) claim
+    // the order with the guarded update. Under READ COMMITTED, two different PAID orders for one user
+    // would otherwise both read the same coversUntil and get an identical window (paid days lost).
+    // The lock is transaction-scoped, so it releases on commit/rollback; the second settlement waits,
+    // then its (later) read sees the first one's committed coversUntil. Settling the same order twice
+    // stays idempotent because the claim in (3) still only succeeds once.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('coverage:' || ${order.userId}))`;
+
     const latest = await tx.paymentOrder.aggregate({
       where: { userId: order.userId, status: "PAID" },
       _max: { coversUntil: true },

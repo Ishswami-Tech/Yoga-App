@@ -24,7 +24,7 @@ model User {
   name           String
   image          String?
   phone          String?
-  whatsappNumber String?
+  whatsappNumber String?  @unique
   role           String   @default("STUDENT") // STUDENT | INSTRUCTOR | ADMIN
   status         String   @default("ACTIVE")  // ACTIVE | DISABLED
   passwordHash   String   @default("")

@@ -30,8 +30,8 @@ export function PublicShell({ children }: { children: ReactNode }) {
             className="flex items-center gap-3 group min-h-11"
             aria-label={`${APP_NAME} home`}
           >
-            <BrandLogo size={40} className="group-hover:scale-105 transition" priority />
-            <span className="font-display text-2xl font-semibold tracking-tight">
+            <BrandLogo size={54} className="shrink-0 group-hover:scale-105 transition" priority />
+            <span className="font-display text-base leading-tight sm:text-2xl font-semibold tracking-tight text-left">
               <span className="text-brand-gradient">{APP_NAME}</span>
             </span>
           </button>
@@ -108,7 +108,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
         <div className="container mx-auto px-4 py-10 grid gap-8 md:grid-cols-4">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <BrandLogo size={36} plate />
+              <BrandLogo size={48} plate />
               <span className="font-display text-xl font-semibold">{APP_NAME}</span>
             </div>
             <p className="text-sm text-[#FFE4C4]">

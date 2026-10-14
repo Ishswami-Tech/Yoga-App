@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { run, fail, fromZodError, notFound } from "@/lib/api";
 import { adminUserUpdateSchema } from "@/lib/validation";
 import { normalizePhone, phoneCandidates, toCanonical } from "@/lib/phone";
+import { isUniqueViolation } from "@/lib/prisma-errors";
 import { audit } from "@/lib/services/audit";
 
 export const runtime = "nodejs";
@@ -33,17 +34,25 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         waCanonical = toCanonical(wa);
       }
     }
-    const updated = await db.user.update({
-      where: { id },
-      data: {
-        ...(parsed.data.role ? { role: parsed.data.role } : {}),
-        ...(parsed.data.status ? { status: parsed.data.status } : {}),
-        ...(parsed.data.name ? { name: parsed.data.name } : {}),
-        ...(parsed.data.email ? { email: parsed.data.email } : {}),
-        ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone ?? null } : {}),
-        ...(waCanonical !== undefined ? { whatsappNumber: waCanonical } : {}),
-      },
-    });
+    let updated;
+    try {
+      updated = await db.user.update({
+        where: { id },
+        data: {
+          ...(parsed.data.role ? { role: parsed.data.role } : {}),
+          ...(parsed.data.status ? { status: parsed.data.status } : {}),
+          ...(parsed.data.name ? { name: parsed.data.name } : {}),
+          ...(parsed.data.email ? { email: parsed.data.email } : {}),
+          ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone ?? null } : {}),
+          ...(waCanonical !== undefined ? { whatsappNumber: waCanonical } : {}),
+        },
+      });
+    } catch (err) {
+      if (isUniqueViolation(err, ["whatsappNumber"])) {
+        return fail("This WhatsApp number already belongs to another account", 409, { code: "PHONE_TAKEN" });
+      }
+      throw err;
+    }
     await audit({
       actorUserId: admin.id,
       action: "USER_UPDATE",

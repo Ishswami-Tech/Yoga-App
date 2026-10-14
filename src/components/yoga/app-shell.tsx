@@ -77,7 +77,7 @@ export function AppShell({
       <header className="sticky top-0 z-40 bg-secondary/90 backdrop-blur shadow-[0_6px_20px_-12px_rgb(59_31_26/0.35)]">
         <div className="flex h-16 px-4 items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <BrandLogo size={40} className="shrink-0" priority />
+            <BrandLogo size={52} className="shrink-0" priority />
             <div className="min-w-0">
               <p className="font-display text-lg font-semibold tracking-tight truncate">
                 {APP_NAME}

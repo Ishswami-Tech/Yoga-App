@@ -5,6 +5,7 @@ import { createSession, setSessionCookie, AuthUser } from "@/lib/auth";
 import { run, fail, fromZodError } from "@/lib/api";
 import { normalizePhone, phoneCandidates, toCanonical } from "@/lib/phone";
 import { clientIp, throttle } from "@/lib/rate-limit";
+import { isUniqueViolation } from "@/lib/prisma-errors";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -40,26 +41,35 @@ export async function POST(req: NextRequest) {
     const result = await verifyOtp(phone, code);
     if (!result.ok) return fail(result.error, 401, { code: "OTP_FAILED" });
 
-    let user = await db.user.findFirst({
-      where: { whatsappNumber: { in: phoneCandidates(phone) } },
-      orderBy: { createdAt: "asc" },
-    });
+    const findUser = () =>
+      db.user.findFirst({
+        where: { whatsappNumber: { in: phoneCandidates(phone) } },
+        orderBy: { createdAt: "asc" },
+      });
+    let user = await findUser();
 
     if (!user) {
       if (mode !== "register" || result.purpose !== "REGISTER" || !name) {
         return fail(BAD, 401, { code: "OTP_FAILED" });
       }
-      user = await db.user.create({
-        data: {
-          name,
-          // email is required/unique in the schema; accounts are identified by phone.
-          email: `${phone}@phone.vishwayog.invalid`,
-          whatsappNumber: toCanonical(phone),
-          phone: toCanonical(phone),
-          role: "STUDENT",
-          status: "ACTIVE",
-        },
-      });
+      try {
+        user = await db.user.create({
+          data: {
+            name,
+            // email is required/unique in the schema; accounts are identified by phone.
+            email: `${phone}@phone.vishwayog.invalid`,
+            whatsappNumber: toCanonical(phone),
+            phone: toCanonical(phone),
+            role: "STUDENT",
+            status: "ACTIVE",
+          },
+        });
+      } catch (err) {
+        // A concurrent verify for the same number created the account first.
+        if (!isUniqueViolation(err, ["email", "whatsappNumber"])) throw err;
+        user = await findUser();
+        if (!user) throw err;
+      }
     }
 
     if (user.status !== "ACTIVE") {

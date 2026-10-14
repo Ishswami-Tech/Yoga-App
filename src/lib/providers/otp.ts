@@ -2,7 +2,8 @@
 //
 // - 6-digit codes from crypto.randomInt, stored only as HMAC-SHA256(AUTH_SECRET)
 // - 5 minute expiry, single use, max 5 verify attempts
-// - 30s resend cooldown, max 5 sends/hour per phone and per IP (OtpCode is the authority)
+// - 30s resend cooldown, max 5 sends/hour per phone and per IP, plus a global hourly cap
+//   (OTP_GLOBAL_MAX_SENDS_PER_HOUR, default 300); OtpCode is the authority
 // - the code is never returned to callers other than via the WhatsApp message
 
 import { createHmac, randomInt, timingSafeEqual } from "crypto";
@@ -14,7 +15,28 @@ export const OTP_TTL_MS = 5 * 60 * 1000;
 export const OTP_RESEND_COOLDOWN_MS = 30 * 1000;
 export const OTP_MAX_SENDS_PER_HOUR = 5;
 export const OTP_MAX_ATTEMPTS = 5;
+export const OTP_GLOBAL_MAX_SENDS_PER_HOUR_DEFAULT = 300;
 const HOUR_MS = 60 * 60 * 1000;
+
+/** Global cap on OTP sends across all phones/IPs per hour (env OTP_GLOBAL_MAX_SENDS_PER_HOUR). */
+export function globalMaxSendsPerHour(env: Record<string, string | undefined> = process.env): number {
+  const n = Number.parseInt(env.OTP_GLOBAL_MAX_SENDS_PER_HOUR ?? "", 10);
+  return Number.isInteger(n) && n > 0 ? n : OTP_GLOBAL_MAX_SENDS_PER_HOUR_DEFAULT;
+}
+
+/** Pure limit decision: true when the send must be rejected as rate limited. */
+export function decideSendLimit(c: {
+  phoneCount: number;
+  ipCount: number;
+  globalCount: number;
+  globalMax: number;
+}): boolean {
+  return (
+    c.phoneCount >= OTP_MAX_SENDS_PER_HOUR ||
+    c.ipCount >= OTP_MAX_SENDS_PER_HOUR ||
+    c.globalCount >= c.globalMax
+  );
+}
 
 export type OtpPurpose = "LOGIN" | "REGISTER";
 
@@ -61,11 +83,12 @@ export async function sendOtp(opts: {
       return { ok: false, reason: "COOLDOWN", error: `Please wait ${wait}s before requesting another code.`, retryAfterSec: wait };
     }
   }
-  const [phoneCount, ipCount] = await Promise.all([
+  const [phoneCount, ipCount, globalCount] = await Promise.all([
     db.otpCode.count({ where: { phone, createdAt: { gte: hourAgo } } }),
     ip ? db.otpCode.count({ where: { ip, createdAt: { gte: hourAgo } } }) : Promise.resolve(0),
+    db.otpCode.count({ where: { createdAt: { gte: hourAgo } } }),
   ]);
-  if (phoneCount >= OTP_MAX_SENDS_PER_HOUR || ipCount >= OTP_MAX_SENDS_PER_HOUR) {
+  if (decideSendLimit({ phoneCount, ipCount, globalCount, globalMax: globalMaxSendsPerHour() })) {
     return { ok: false, reason: "RATE_LIMITED", error: "Too many code requests. Please try again later.", retryAfterSec: 600 };
   }
 

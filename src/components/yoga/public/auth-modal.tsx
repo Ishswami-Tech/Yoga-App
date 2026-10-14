@@ -96,7 +96,7 @@ export function AuthModal() {
         <Mandala size={150} className="pointer-events-none absolute -right-12 -top-12 opacity-70" />
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
-            <BrandLogo size={36} />
+            <BrandLogo size={56} />
             <DialogTitle className="font-display text-2xl font-semibold">{APP_NAME}</DialogTitle>
           </div>
           <DialogDescription>

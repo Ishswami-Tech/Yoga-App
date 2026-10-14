@@ -147,60 +147,82 @@ export async function createSubscriptionForUser(opts: {
   const keyId = getPublicKeyId(); // throws PaymentsUnavailableError when not configured
   const amount = await getPlanAmount();
 
-  const current = await getSubscriptionState(opts.userId);
-  if (current.state === "ACTIVE" && current.subscription?.status === "ACTIVE") {
-    throw new SubscriptionError("ALREADY_ACTIVE", "You already have an active membership");
-  }
-
-  // Reuse a recent un-paid checkout at the same price instead of piling up Razorpay subscriptions.
-  const existing = await db.subscription.findFirst({
-    where: {
-      userId: opts.userId,
-      status: "CREATED",
-      amount,
-      createdAt: { gt: new Date(Date.now() - 6 * 3600 * 1000) },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-  if (existing) {
-    return {
-      subscriptionId: existing.razorpaySubscriptionId,
-      keyId,
-      razorpaySubscriptionId: existing.razorpaySubscriptionId,
-      razorpayPlanId: existing.razorpayPlanId,
-      amount: existing.amount,
-      currency: existing.currency,
-      status: existing.status,
-    };
-  }
-
-  const created = await razorpay.createSubscription({
-    userId: opts.userId,
-    userEmail: opts.userEmail,
-    userName: opts.userName,
-    amount,
-  });
-
-  await db.subscription.create({
-    data: {
-      userId: opts.userId,
-      razorpaySubscriptionId: created.razorpaySubscriptionId,
-      razorpayPlanId: created.razorpayPlanId,
-      status: "CREATED",
-      amount: created.amount,
-      currency: created.currency,
-    },
-  });
-
-  return {
-    subscriptionId: created.razorpaySubscriptionId,
-    keyId,
-    razorpaySubscriptionId: created.razorpaySubscriptionId,
-    razorpayPlanId: created.razorpayPlanId,
-    amount: created.amount,
-    currency: created.currency,
-    status: created.status,
+  type CheckoutInfo = {
+    subscriptionId: string;
+    keyId: string;
+    razorpaySubscriptionId: string;
+    razorpayPlanId: string;
+    amount: number;
+    currency: string;
+    status: string;
   };
+
+  // Serialize check-then-create per user with a transaction-scoped advisory lock, so a double-click
+  // cannot create two Razorpay subscriptions. The lock is held across the Razorpay HTTP call on
+  // purpose: the call is the thing being de-duplicated, concurrent requests for the SAME user just
+  // wait and then reuse the row. Other users are unaffected (lock key is per user). The timeout is
+  // raised above Razorpay's request time so the transaction is not killed mid-call.
+  return db.$transaction(
+    async (tx): Promise<CheckoutInfo> => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"sub:" + opts.userId}))`;
+
+      const current = await getSubscriptionState(opts.userId);
+      if (current.state === "ACTIVE" && current.subscription?.status === "ACTIVE") {
+        throw new SubscriptionError("ALREADY_ACTIVE", "You already have an active membership");
+      }
+
+      // Reuse a recent un-paid checkout at the same price instead of piling up Razorpay subscriptions.
+      const existing = await tx.subscription.findFirst({
+        where: {
+          userId: opts.userId,
+          status: "CREATED",
+          amount,
+          createdAt: { gt: new Date(Date.now() - 6 * 3600 * 1000) },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (existing) {
+        return {
+          subscriptionId: existing.razorpaySubscriptionId,
+          keyId,
+          razorpaySubscriptionId: existing.razorpaySubscriptionId,
+          razorpayPlanId: existing.razorpayPlanId,
+          amount: existing.amount,
+          currency: existing.currency,
+          status: existing.status,
+        };
+      }
+
+      const created = await razorpay.createSubscription({
+        userId: opts.userId,
+        userEmail: opts.userEmail,
+        userName: opts.userName,
+        amount,
+      });
+
+      await tx.subscription.create({
+        data: {
+          userId: opts.userId,
+          razorpaySubscriptionId: created.razorpaySubscriptionId,
+          razorpayPlanId: created.razorpayPlanId,
+          status: "CREATED",
+          amount: created.amount,
+          currency: created.currency,
+        },
+      });
+
+      return {
+        subscriptionId: created.razorpaySubscriptionId,
+        keyId,
+        razorpaySubscriptionId: created.razorpaySubscriptionId,
+        razorpayPlanId: created.razorpayPlanId,
+        amount: created.amount,
+        currency: created.currency,
+        status: created.status,
+      };
+    },
+    { maxWait: 15_000, timeout: 45_000 }
+  );
 }
 
 // Map a Razorpay subscription entity status to our local status. Returns null when the entity
@@ -297,6 +319,8 @@ export async function changeSubscriptionBilling(
   return syncSubscriptionFromEntity(sub.id, entity);
 }
 
+const STALE_PROCESSING_MS = 2 * 60 * 1000;
+
 function webhookStatus(event: string): string | null {
   switch (event) {
     case "subscription.activated":
@@ -317,6 +341,33 @@ function webhookStatus(event: string): string | null {
   }
 }
 
+// Razorpay's cancelled / expired / completed are terminal: late or reordered activated / charged /
+// resumed events must never bring such a subscription back (that would restore access).
+const TERMINAL_STATUSES: ReadonlySet<string> = new Set(["CANCELLED", "EXPIRED", "COMPLETED"]);
+
+export function isTerminalStatus(status: string): boolean {
+  return TERMINAL_STATUSES.has(status);
+}
+
+export type WebhookTransition = {
+  /** Status to write, or null to leave the status untouched. */
+  status: string | null;
+  /** False when the event must not touch the subscription row at all (status or dates). */
+  apply: boolean;
+  reason?: "terminal_state";
+};
+
+// Pure decision: may `event` change a subscription currently in `current`?
+export function decideWebhookTransition(current: string, event: string): WebhookTransition {
+  const target = webhookStatus(event);
+  if (isTerminalStatus(current)) {
+    // Terminal rows are frozen: no status change and no date extension (a late `charged` carries a
+    // newer current_end that would re-open access).
+    return { status: null, apply: false, reason: "terminal_state" };
+  }
+  return { status: target, apply: true };
+}
+
 // Map a verified Razorpay webhook event to local state changes, transactionally and idempotently
 // (WebhookEvent row keyed by provider + Razorpay event id).
 export async function applyRazorpayEvent(
@@ -331,10 +382,17 @@ export async function applyRazorpayEvent(
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      // A previously FAILED event may be retried by Razorpay; anything else is a duplicate.
+      // A previously FAILED event may be retried by Razorpay, and so may a PROCESSING row left behind
+      // by a crashed worker (older than the stale window). The conditional updateMany is atomic, so
+      // only one retry wins; createdAt is bumped so the reclaimed row is "fresh" again.
+      const staleBefore = new Date(Date.now() - STALE_PROCESSING_MS);
       const claimed = await db.webhookEvent.updateMany({
-        where: { provider: "razorpay", eventId, status: "FAILED" },
-        data: { status: "PROCESSING", errorMessage: null },
+        where: {
+          provider: "razorpay",
+          eventId,
+          OR: [{ status: "FAILED" }, { status: "PROCESSING", createdAt: { lt: staleBefore } }],
+        },
+        data: { status: "PROCESSING", errorMessage: null, createdAt: new Date() },
       });
       if (claimed.count === 0) return { applied: false, reason: "duplicate_event" };
     } else {
@@ -374,15 +432,22 @@ export async function applyRazorpayEvent(
     }
     const sub = subscription;
 
+    let blockedReason: string | undefined;
     await db.$transaction(async (tx) => {
-      const nextStatus = webhookStatus(event.event);
+      // Re-read inside the transaction so the guard sees the latest status.
+      const fresh = await tx.subscription.findUnique({ where: { id: sub.id }, select: { status: true } });
+      const current = fresh?.status ?? sub.status;
+      const decision = decideWebhookTransition(current, event.event);
+      if (!decision.apply) blockedReason = decision.reason;
+      const nextStatus = decision.status;
       const start = toDate(subEntity?.current_start);
       const end = toDate(subEntity?.current_end);
       const nextBilling = toDate(subEntity?.charge_at) ?? end;
 
-      if (nextStatus || start || end || nextBilling) {
-        await tx.subscription.update({
-          where: { id: sub.id },
+      if (decision.apply && (nextStatus || start || end || nextBilling)) {
+        // Compare-and-set on the status we decided from, so a concurrent cancel cannot be overwritten.
+        const updated = await tx.subscription.updateMany({
+          where: { id: sub.id, status: current },
           data: {
             ...(nextStatus ? { status: nextStatus } : {}),
             ...(start ? { startDate: start } : {}),
@@ -390,6 +455,7 @@ export async function applyRazorpayEvent(
             ...(nextBilling ? { nextBillingDate: nextBilling } : {}),
           },
         });
+        if (updated.count === 0) throw new Error("subscription status changed concurrently");
       }
 
       if (payEntity?.id && typeof payEntity.amount === "number") {
@@ -436,6 +502,7 @@ export async function applyRazorpayEvent(
       });
     });
 
+    if (blockedReason) return { applied: false, reason: blockedReason };
     return { applied: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

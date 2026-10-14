@@ -64,7 +64,7 @@ export function Checkout() {
         <section className="container mx-auto px-4 py-16">
           <div className="max-w-md mx-auto text-center">
             <div className="mx-auto mb-5 w-fit">
-              <BrandLogo size={64} />
+              <BrandLogo size={88} />
             </div>
             <h1 className="font-display text-3xl font-semibold mb-2">Sign in to subscribe</h1>
             <p className="text-muted-foreground mb-6">

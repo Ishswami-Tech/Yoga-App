@@ -40,7 +40,7 @@ export function LegalPage({
             className="flex items-center gap-3 group min-h-11"
             aria-label={`${APP_NAME} home`}
           >
-            <BrandLogo size={40} className="group-hover:scale-105 transition" priority />
+            <BrandLogo size={52} className="group-hover:scale-105 transition" priority />
             <span className="font-display text-2xl font-semibold tracking-tight">
               <span className="text-brand-gradient">{APP_NAME}</span>
             </span>

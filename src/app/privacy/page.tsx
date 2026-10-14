@@ -45,6 +45,11 @@ export default function PrivacyPage() {
         are service messages linked to your account. We do not use your number for unrelated
         advertising.
       </p>
+      <p>
+        Messages are sent from, and any replies you send to that WhatsApp number are received by,
+        Ishswami Tech, which runs this service on our behalf. Ishswami Tech uses them only to answer
+        your question or support request.
+      </p>
 
       <h2>Who we share it with</h2>
       <p>We share only what is needed to run the service, with these providers:</p>
