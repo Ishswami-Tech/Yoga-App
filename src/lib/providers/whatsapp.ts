@@ -9,6 +9,7 @@
 // Without those env vars nothing is sent: sends return FAILED / NOT_CONFIGURED.
 
 import { createHash } from "crypto";
+import { buildOtpComponents } from "./whatsapp-otp";
 
 export const WHATSAPP_TEMPLATE_NAME = "yoga_class_reminder_v1";
 export const WHATSAPP_LANGUAGE = "en";
@@ -122,8 +123,8 @@ export const whatsapp = {
     return sendLive(input, live);
   },
 
-  // Sends a login code with the approved AUTHENTICATION template
-  // (body {{1}} = code, plus the copy-code button). Never logs the code.
+  // Sends a login code with the approved template (see whatsapp-otp.ts for the supported
+  // shapes; default is the AUTHENTICATION template with a copy-code button). Never logs the code.
   async sendOtp(input: { to: string; code: string }): Promise<WhatsAppSendResult> {
     const live = liveConfig();
     if (!live) {
@@ -141,6 +142,13 @@ export const whatsapp = {
     }
     const name = process.env.META_WA_OTP_TEMPLATE?.trim() || "otp_login";
     const language = process.env.META_WA_OTP_LANGUAGE?.trim() || "en";
+    let components;
+    try {
+      components = buildOtpComponents(input.code);
+    } catch (e) {
+      console.error("[whatsapp] invalid OTP template configuration:", e instanceof Error ? e.message : e);
+      return { providerMessageId: "", status: "FAILED", errorCode: "NOT_CONFIGURED", errorMessage: "OTP template is misconfigured" };
+    }
     try {
       const res = await fetch(`https://graph.facebook.com/v20.0/${live.phoneNumberId}/messages`, {
         method: "POST",
@@ -152,15 +160,7 @@ export const whatsapp = {
           template: {
             name,
             language: { code: language },
-            components: [
-              { type: "body", parameters: [{ type: "text", text: input.code }] },
-              {
-                type: "button",
-                sub_type: "url",
-                index: "0",
-                parameters: [{ type: "text", text: input.code }],
-              },
-            ],
+            components,
           },
         }),
         signal: AbortSignal.timeout(10_000),
