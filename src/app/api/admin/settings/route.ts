@@ -20,6 +20,7 @@ export async function GET() {
       whatsappTemplate: map.whatsappTemplate ?? "yoga_class_reminder_v1",
       lookAheadDays: parseInt(map.lookAheadDays ?? "2", 10),
       reminderMinutesBefore: parseInt(map.reminderMinutesBefore ?? "15", 10),
+      meetLeadMinutes: parseInt(map.meetLeadMinutes ?? "90", 10),
     });
   });
 }
@@ -37,6 +38,7 @@ export async function PUT(req: NextRequest) {
       ["whatsappTemplate", parsed.data.whatsappTemplate],
       ["lookAheadDays", parsed.data.lookAheadDays?.toString()],
       ["reminderMinutesBefore", parsed.data.reminderMinutesBefore?.toString()],
+      ["meetLeadMinutes", parsed.data.meetLeadMinutes?.toString()],
     ];
     for (const [k, v] of entries) {
       if (v === undefined) continue;

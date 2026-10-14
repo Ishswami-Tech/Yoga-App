@@ -20,7 +20,14 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ErrorCard, EmptyState } from "./shared";
-import { prettyDate, prettyTime, shortDate } from "./format";
+import {
+  prettyDate,
+  prettyTime,
+  shortDate,
+  meetPendingLabel,
+  meetRefetchInterval,
+  MEET_PENDING_HELP,
+} from "./format";
 import { SunFan } from "../art/sunrise";
 
 function dayParts(date: string) {
@@ -43,6 +50,7 @@ type Item = {
   meetUrl: string | null;
   reminderSent: boolean;
   canJoin: boolean;
+  meetAvailableAt?: string | null;
 };
 
 type Upcoming = { days: number; items: Item[] };
@@ -53,6 +61,7 @@ export function UpcomingView() {
     queryKey: ["classes", "upcoming", 7],
     queryFn: () => apiGet<Upcoming>("/api/classes/upcoming?days=7"),
     retry: false,
+    refetchInterval: (query) => meetRefetchInterval(query.state.data?.items),
   });
 
   if (q.isLoading) return <UpcomingSkeleton />;
@@ -171,7 +180,7 @@ export function UpcomingView() {
       </div>
 
       <p className="px-2 text-[13.5px] font-semibold text-muted-foreground">
-        WhatsApp reminders with your Meet link arrive 15 minutes before each class.
+        {MEET_PENDING_HELP}
       </p>
     </div>
   );
@@ -198,7 +207,7 @@ function StatusBadge({
       variant="outline"
       className="rounded-full border-transparent bg-marigold/30 px-3 text-foreground font-extrabold"
     >
-      Meet pending
+      Link not created yet
     </Badge>
   );
 }
@@ -223,8 +232,12 @@ function JoinButton({ item, compact }: { item: Item; compact?: boolean }) {
     );
   }
   return (
-    <Button className="min-h-11" variant="outline" disabled>
-      <Video className="h-4 w-4" /> Soon
+    <Button
+      className={compact ? "min-h-11 px-3 text-xs" : "min-h-11"}
+      variant="outline"
+      disabled
+    >
+      <Video className="h-4 w-4" /> {meetPendingLabel(item.meetAvailableAt)}
     </Button>
   );
 }

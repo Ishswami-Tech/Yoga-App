@@ -68,7 +68,7 @@ type Schedule = { id: string; name: string };
 const STATUS_FILTERS = [
   { value: "ALL", label: "All statuses" },
   { value: "READY", label: "Ready" },
-  { value: "PENDING_MEET", label: "Meet pending" },
+  { value: "PENDING_MEET", label: "Link not created yet" },
   { value: "CANCELLED", label: "Cancelled" },
   { value: "COMPLETED", label: "Completed" },
   { value: "FAILED", label: "Failed" },
@@ -377,7 +377,9 @@ export function ClassesView() {
                                 </div>
                               ) : (
                                 <span className="text-xs text-muted-foreground">
-                                  No meet URL yet — Google event still pending.
+                                  {c.status === "PENDING_MEET"
+                                    ? "Link not created yet (created automatically before class)"
+                                    : "No meet URL yet."}
                                 </span>
                               )}
                             </div>

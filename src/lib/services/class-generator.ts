@@ -7,7 +7,9 @@
 //      - skip if weekday flag is false
 //      - skip / cancel if there's a NO_CLASS exception for that date
 //      - otherwise upsert a YogaClass keyed by (scheduleId, date)
-//      - if no Meet exists, create one via the google adapter and persist
+//      - create the Meet via the google adapter ONLY inside the window
+//        [start - meetLeadMinutes, end) (see meet-window.ts); earlier runs
+//        leave the row PENDING_MEET with no link
 //   4. The whole job is idempotent: unique constraint on (scheduleId, date)
 //      plus the existing googleEventId check guarantees no duplicates.
 //
@@ -22,6 +24,11 @@ import {
   istDateTime,
   minusMinutes,
 } from "./scheduling";
+import {
+  parseMeetLeadMinutes,
+  parseReminderMinutes,
+  shouldCreateMeetNow,
+} from "./meet-window";
 import { googleMeet } from "@/lib/providers/google";
 import type { ClassSchedule } from "@prisma/client";
 
@@ -30,6 +37,8 @@ export type GenerationResult = {
   createdClasses: number;
   createdMeets: number;
   skippedHoliday: number;
+  /** Classes without a link yet because their Meet window has not opened. */
+  pendingUntilWindow: number;
   errors: string[];
   perSchedule: { scheduleId: string; name: string; created: number }[];
 };
@@ -46,9 +55,11 @@ export async function getLookAheadDays(): Promise<number> {
 }
 
 export async function getReminderMinutesBefore(): Promise<number> {
-  const raw = await getSetting("reminderMinutesBefore", "15");
-  const n = parseInt(raw, 10);
-  return Number.isFinite(n) && n >= 1 && n <= 180 ? n : 15;
+  return parseReminderMinutes(await getSetting("reminderMinutesBefore", "15"));
+}
+
+export async function getMeetLeadMinutes(): Promise<number> {
+  return parseMeetLeadMinutes(await getSetting("meetLeadMinutes", "90"));
 }
 
 // Soft time budget per run (the worker route has maxDuration = 60s). Anything
@@ -58,18 +69,23 @@ const JOB_BUDGET_MS = 45_000;
 export async function generateClasses(opts?: {
   lookAheadDaysOverride?: number;
   todayOverride?: Date;
+  /** Clock used for the Meet window check (tests). Defaults to the real time. */
+  nowOverride?: Date;
 }): Promise<GenerationResult> {
   const lookAhead =
     opts?.lookAheadDaysOverride ?? (await getLookAheadDays());
   const today = opts?.todayOverride ?? new Date();
   const deadline = Date.now() + JOB_BUDGET_MS;
+  const now = opts?.nowOverride ?? new Date();
   const reminderMinutes = await getReminderMinutesBefore();
+  const meetLeadMinutes = await getMeetLeadMinutes();
 
   const result: GenerationResult = {
     checked: 0,
     createdClasses: 0,
     createdMeets: 0,
     skippedHoliday: 0,
+    pendingUntilWindow: 0,
     errors: [],
     perSchedule: [],
   };
@@ -138,7 +154,29 @@ export async function generateClasses(opts?: {
       if (cls.status === "CANCELLED" || cls.status === "COMPLETED") continue;
 
       if (!cls.meetUrl || !cls.googleEventId) {
-        // PENDING_MEET and FAILED classes are both (re)tried on every run.
+        const startsAt = istDateTime(dateStr, schedule.startTime);
+        const endsAt = istDateTime(dateStr, schedule.endTime);
+        if (!shouldCreateMeetNow({ now, startsAt, endsAt, leadMinutes: meetLeadMinutes })) {
+          if (now.getTime() >= endsAt.getTime()) {
+            // The class is over and never got a link: never create a Meet for
+            // the past. Mark FAILED once (visible to admin, drops off the
+            // member schedule) instead of leaving a PENDING_MEET row forever.
+            if (cls.status !== "FAILED") {
+              await db.yogaClass.update({
+                where: { id: cls.id },
+                data: {
+                  status: "FAILED",
+                  errorMessage: "Class ended before a Meet link was created",
+                },
+              });
+            }
+          } else {
+            // Window not open yet: expected, not an error.
+            result.pendingUntilWindow++;
+          }
+          continue;
+        }
+        // Inside the window: PENDING_MEET and FAILED classes are (re)tried on every run.
         try {
           const created = await googleMeet.createMeetForClass({
             scheduleId: schedule.id,

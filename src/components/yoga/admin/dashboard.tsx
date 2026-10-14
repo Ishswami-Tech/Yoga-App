@@ -123,10 +123,6 @@ export function DashboardView() {
     attention.push(
       `${c.failedMessages} WhatsApp message${c.failedMessages === 1 ? "" : "s"} failed to send`
     );
-  if (c.pendingMeets > 0)
-    attention.push(
-      `${c.pendingMeets} class${c.pendingMeets === 1 ? " is" : "es are"} still waiting on a Google Meet link`
-    );
   const jobBtn = (job: "generate" | "remind" | "retry", label: string, Icon: typeof Zap) => (
     <Button
       variant="outline"
@@ -204,9 +200,9 @@ export function DashboardView() {
         <KpiTile label="WhatsApp sent today" value={c.whatsappToday} hint="class reminders" />
         <KpiTile
           tone="wait"
-          label="Pending Meets"
+          label="Links not created yet"
           value={c.pendingMeets}
-          hint={c.pendingMeets > 0 ? "needs Google event" : "all set"}
+          hint={c.pendingMeets > 0 ? "created automatically before class" : "all set"}
         />
         <KpiTile
           tone="bad"

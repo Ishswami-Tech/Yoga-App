@@ -142,3 +142,52 @@ export function greeting(now: Date = new Date()): string {
   if (istH < 21) return "Good evening";
   return "Good night";
 }
+
+/** Helper text shown when a class has no Meet link yet. */
+export const MEET_PENDING_HELP =
+  "Your class link is generated automatically about 1-2 hours before class. We'll also WhatsApp you a reminder just before it starts.";
+
+/** ISO timestamp -> IST wall-clock "6:30 AM". Returns null if missing/invalid. */
+export function istTimeFromIso(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  const ist = new Date(t + 5.5 * 60 * 60 * 1000);
+  const hhmm = `${String(ist.getUTCHours()).padStart(2, "0")}:${String(
+    ist.getUTCMinutes()
+  ).padStart(2, "0")}`;
+  return prettyTime(hhmm);
+}
+
+/** "Link available at 6:30 AM" (falls back to a generic label without a time). */
+export function meetPendingLabel(iso: string | null | undefined): string {
+  const t = istTimeFromIso(iso);
+  return t ? `Link available at ${t}` : "Link not ready yet";
+}
+
+type PendingLike = {
+  date: string;
+  startTime: string;
+  status: string;
+  hasMeet: boolean;
+};
+
+/** True when the class has no link yet (still waiting for the link window). */
+export function isMeetPending(c: Pick<PendingLike, "status" | "hasMeet">): boolean {
+  return !c.hasMeet || c.status === "PENDING_MEET";
+}
+
+/** react-query refetchInterval helper: poll every 60s while any visible class
+ *  is PENDING_MEET and starts within the next 4 hours (or has just started). */
+export function meetRefetchInterval(
+  items: PendingLike | PendingLike[] | null | undefined,
+  now: number = Date.now()
+): number | false {
+  const list = Array.isArray(items) ? items : items ? [items] : [];
+  const soon = list.some((c) => {
+    if (c.status !== "PENDING_MEET") return false;
+    const s = istEpoch(c.date.slice(0, 10), c.startTime);
+    return !Number.isNaN(s) && s - now <= 4 * 60 * 60 * 1000 && s - now > -2 * 60 * 60 * 1000;
+  });
+  return soon ? 60 * 1000 : false;
+}

@@ -22,7 +22,15 @@ import {
   Flame,
 } from "lucide-react";
 import { MembershipStateBadge, KV } from "./shared";
-import { greeting, prettyTime, prettyDate, relativeToStart } from "./format";
+import {
+  greeting,
+  prettyTime,
+  prettyDate,
+  relativeToStart,
+  meetPendingLabel,
+  meetRefetchInterval,
+  MEET_PENDING_HELP,
+} from "./format";
 import { ClassCountdown } from "./class-countdown";
 import { StreakCard } from "./streak-card";
 import { BadgesCard } from "./badges-card";
@@ -40,6 +48,7 @@ type TodayClass = {
   meetUrl: string | null;
   reminderSent: boolean;
   canJoin: boolean;
+  meetAvailableAt?: string | null;
   membershipRequired: boolean;
 };
 
@@ -61,6 +70,7 @@ export function DashboardView() {
     queryKey: ["classes", "upcoming", 7],
     queryFn: () => apiGet<Upcoming>("/api/classes/upcoming?days=7"),
     retry: false,
+    refetchInterval: (query) => meetRefetchInterval(query.state.data?.items),
   });
 
   const state = membership?.state ?? "NONE";
@@ -182,7 +192,7 @@ export function DashboardView() {
                   >
                     <Sparkles className="h-4 w-4" /> Subscribe to join
                   </Button>
-                ) : (
+                ) : todayQ.data.hasMeet ? (
                   <Button
                     variant="outline"
                     className="w-full min-h-11"
@@ -190,6 +200,16 @@ export function DashboardView() {
                   >
                     View details <ArrowRight className="h-4 w-4" />
                   </Button>
+                ) : (
+                  <>
+                    <Button variant="outline" className="w-full min-h-11" disabled>
+                      <Clock className="h-4 w-4" />{" "}
+                      {meetPendingLabel(todayQ.data.meetAvailableAt)}
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      {MEET_PENDING_HELP}
+                    </p>
+                  </>
                 )}
               </>
             ) : todayQ.isError ? (
@@ -292,7 +312,7 @@ function JoinCard({
   const plan = usePlan();
   const perks = [
     { icon: Video, bg: "bg-marigold", text: "The live Google Meet class every day" },
-    { icon: Bell, bg: "bg-[#8FAF8A]", text: "WhatsApp reminder with your link 15 minutes before" },
+    { icon: Bell, bg: "bg-[#8FAF8A]", text: "WhatsApp reminder with your link just before class" },
     { icon: Flame, bg: "bg-rose", text: "Your streak, badges and practice journal" },
   ];
   return (
@@ -471,6 +491,21 @@ function DailyRitualHero({
               >
                 <Sparkles className="h-4 w-4" /> Subscribe {plan.display}/mo
               </Button>
+            ) : today && !today.hasMeet ? (
+              <>
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  className="bg-white/20 text-primary-foreground min-h-12"
+                  disabled
+                >
+                  <Clock className="h-4 w-4" />{" "}
+                  {meetPendingLabel(today.meetAvailableAt)}
+                </Button>
+                <p className="max-w-[240px] text-xs text-primary-foreground">
+                  {MEET_PENDING_HELP}
+                </p>
+              </>
             ) : today ? (
               <Button
                 size="lg"

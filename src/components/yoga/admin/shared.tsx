@@ -68,7 +68,7 @@ const STATUS_MAP: Record<
     className: CHIP_WAIT,
   },
   PENDING_MEET: {
-    label: "Meet pending",
+    label: "Link not created yet",
     className: CHIP_WAIT,
   },
   PROCESSING: {

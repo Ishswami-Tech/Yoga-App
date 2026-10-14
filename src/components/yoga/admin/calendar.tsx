@@ -161,7 +161,7 @@ export function CalendarView() {
           {[
             ["Ready", "bg-success-soft", "bg-chart-4"],
             ["Completed", "bg-secondary", "bg-foreground"],
-            ["Pending", "bg-marigold/40", "bg-marigold"],
+            ["Link not created yet", "bg-marigold/40", "bg-marigold"],
             ["No class", "bg-muted", "bg-transparent"],
             ["Cancelled", "bg-accent", "bg-primary"],
           ].map(([label, bg, dot]) => (
@@ -251,7 +251,7 @@ export function CalendarView() {
                         <div
                           key={c.id}
                           className="flex items-center gap-1.5 text-[11px] font-bold text-foreground"
-                          title={`${c.scheduleName} · ${c.startTime}-${c.endTime} · ${c.status}`}
+                          title={`${c.scheduleName} · ${c.startTime}-${c.endTime} · ${c.status === "PENDING_MEET" ? "Link not created yet (created automatically before class)" : c.status}`}
                         >
                           <span className={`h-2.5 w-2.5 shrink-0 rounded-full border-2 border-foreground ${dotColor}`} />
                           <span className="truncate">{c.startTime}</span>
@@ -374,7 +374,7 @@ function DayDetailDialog({
                   <Badge
                     className={`border-transparent text-[11px] ${STATUS_CHIP[c.status] ?? "bg-muted text-muted-foreground"}`}
                   >
-                    {c.status}
+                    {c.status === "PENDING_MEET" ? "Link not created yet" : c.status}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">

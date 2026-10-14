@@ -21,6 +21,7 @@ import {
   MessageCircle,
   CalendarClock,
   Bell,
+  Video,
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -35,6 +36,8 @@ type Settings = {
   whatsappTemplate: string;
   lookAheadDays: number;
   reminderMinutesBefore: number;
+  /** Minutes before class the Meet link is created (30-240). Optional for older APIs. */
+  meetLeadMinutes?: number;
 };
 
 export function SettingsView() {
@@ -126,12 +129,17 @@ function SettingsForm({
     String(initial.reminderMinutesBefore)
   );
 
+  const [meetLeadMinutes, setMeetLeadMinutes] = useState(
+    String(initial.meetLeadMinutes ?? 90)
+  );
+
   const dirty =
     razorpayPlanId !== initial.razorpayPlanId ||
     razorpayPlanCurrency !== initial.razorpayPlanCurrency ||
     whatsappTemplate !== initial.whatsappTemplate ||
     parseInt(lookAheadDays, 10) !== initial.lookAheadDays ||
-    parseInt(reminderMinutesBefore, 10) !== initial.reminderMinutesBefore;
+    parseInt(reminderMinutesBefore, 10) !== initial.reminderMinutesBefore ||
+    parseInt(meetLeadMinutes, 10) !== (initial.meetLeadMinutes ?? 90);
 
   const lookAheadValid =
     /^\d+$/.test(lookAheadDays) &&
@@ -139,12 +147,17 @@ function SettingsForm({
     parseInt(lookAheadDays, 10) <= 30;
   const reminderValid =
     /^\d+$/.test(reminderMinutesBefore) &&
-    parseInt(reminderMinutesBefore, 10) >= 1 &&
-    parseInt(reminderMinutesBefore, 10) <= 180;
+    parseInt(reminderMinutesBefore, 10) >= 5 &&
+    parseInt(reminderMinutesBefore, 10) <= 60;
+  const meetLeadValid =
+    /^\d+$/.test(meetLeadMinutes) &&
+    parseInt(meetLeadMinutes, 10) >= 30 &&
+    parseInt(meetLeadMinutes, 10) <= 240;
   const valid =
     dirty &&
     lookAheadValid &&
     reminderValid &&
+    meetLeadValid &&
     razorpayPlanId.trim().length > 0;
 
   return (
@@ -249,8 +262,8 @@ function SettingsForm({
               />
             </Field>
             <p className="text-xs text-muted-foreground">
-              How many days ahead the worker generates YogaClass rows +
-              Google Meet events when it runs.
+              How many days ahead the worker schedules class days. Meet links
+              are created later, just before each class.
             </p>
 
             <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground pt-2">
@@ -259,20 +272,42 @@ function SettingsForm({
             </div>
             <Field
               label="Minutes before class"
-              hint="1 – 180"
+              hint="5 – 60"
             >
               <Input
                 type="number"
                 inputMode="numeric"
                 value={reminderMinutesBefore}
                 onChange={(e) => setReminderMinutesBefore(e.target.value)}
-                min={1}
-                max={180}
+                min={5}
+                max={60}
               />
             </Field>
             <p className="text-xs text-muted-foreground">
-              WhatsApp reminders are queued this many minutes before each
-              class start time.
+              Reminder WhatsApp is sent this many minutes before class (15-30
+              recommended).
+            </p>
+
+            <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground pt-2">
+              <Video className="h-3.5 w-3.5" />
+              Meet link creation
+            </div>
+            <Field
+              label="Meet link lead time (minutes before class)"
+              hint="30 – 240"
+            >
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={meetLeadMinutes}
+                onChange={(e) => setMeetLeadMinutes(e.target.value)}
+                min={30}
+                max={240}
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              The system creates each class&apos;s Google Meet link this long
+              before it starts. 60-120 recommended.
             </p>
           </section>
 
@@ -286,6 +321,7 @@ function SettingsForm({
                   whatsappTemplate: whatsappTemplate.trim(),
                   lookAheadDays: parseInt(lookAheadDays, 10),
                   reminderMinutesBefore: parseInt(reminderMinutesBefore, 10),
+                  meetLeadMinutes: parseInt(meetLeadMinutes, 10),
                 })
               }
             >
@@ -301,6 +337,7 @@ function SettingsForm({
                 setWhatsappTemplate(initial.whatsappTemplate);
                 setLookAheadDays(String(initial.lookAheadDays));
                 setReminderMinutesBefore(String(initial.reminderMinutesBefore));
+                setMeetLeadMinutes(String(initial.meetLeadMinutes ?? 90));
               }}
             >
               <RefreshCw className="h-4 w-4" /> Reset
@@ -338,6 +375,12 @@ function SettingsForm({
               <span className="text-muted-foreground">Reminder</span>
               <span className="font-medium">
                 {reminderMinutesBefore} min before
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Meet link</span>
+              <span className="font-medium">
+                {meetLeadMinutes} min before
               </span>
             </div>
           </div>

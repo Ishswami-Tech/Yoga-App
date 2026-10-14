@@ -27,6 +27,8 @@ import {
   prettyDate,
   relativeToStart,
   classPhase,
+  meetPendingLabel,
+  MEET_PENDING_HELP,
 } from "./format";
 import { ClassCountdown } from "./class-countdown";
 import { SunFan } from "@/components/yoga/art/sunrise";
@@ -43,6 +45,7 @@ type TodayClass = {
   meetUrl: string | null;
   reminderSent: boolean;
   canJoin: boolean;
+  meetAvailableAt?: string | null;
   membershipRequired: boolean;
   notes?: string | null;
 };
@@ -206,7 +209,8 @@ export function TodayView() {
                 className="h-14 px-6 bg-[#FFFBF2]/70 text-[#3B1F1A]"
                 disabled
               >
-                <Video className="h-4 w-4" /> Meet link not ready yet
+                <Clock className="h-4 w-4" />{" "}
+                {meetPendingLabel(c.meetAvailableAt)}
               </Button>
             )}
             <div className="flex items-center gap-1.5 text-xs font-semibold text-[#5A372E] self-center px-1">
@@ -214,6 +218,11 @@ export function TodayView() {
               membership
             </div>
           </div>
+          {!(c.canJoin && c.meetUrl) && !c.membershipRequired && (
+            <p className="text-xs font-semibold text-[#5A372E]">
+              {MEET_PENDING_HELP}
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -257,10 +266,10 @@ export function TodayView() {
                     : "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300"
                 }
               >
-                {c.status === "READY" ? "Ready" : "Meet pending"}
+                {c.status === "READY" ? "Ready" : "Link not created yet"}
               </Badge>
               <span className="text-xs text-muted-foreground">
-                {c.hasMeet ? "Meet created" : "Awaiting Meet"}
+                {c.hasMeet ? "Meet created" : "Created automatically before class"}
               </span>
             </div>
           </CardContent>
@@ -319,7 +328,7 @@ export function TodayView() {
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
           <p>
             Meet links are generated fresh each day. You&apos;ll receive a
-            WhatsApp reminder with the join link 15 minutes before class — keep
+            WhatsApp reminder with the join link just before class — keep
             your WhatsApp number current in your{" "}
             <button
               className="text-primary underline underline-offset-4"

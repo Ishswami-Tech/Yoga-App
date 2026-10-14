@@ -33,6 +33,7 @@ async function main() {
   await upsertSetting("razorpayPlanCurrency", RAZORPAY_PLAN_CURRENCY);
   await upsertSetting("lookAheadDays", "3");
   await upsertSetting("reminderMinutesBefore", "15");
+  await upsertSetting("meetLeadMinutes", "90");
   await upsertSetting("whatsappTemplate", "yoga_class_reminder_v1");
 
   // --- Admin ---

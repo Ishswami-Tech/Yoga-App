@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasActiveMembership } from "@/lib/services/subscriptions";
-import { istDateString, istWeekday } from "@/lib/services/scheduling";
+import { istDateString, istWeekday, istDateTime } from "@/lib/services/scheduling";
+import { meetAvailableAt } from "@/lib/services/meet-window";
+import { getMeetLeadMinutes } from "@/lib/services/class-generator";
 import { run, unauthorized, forbidden, notFound } from "@/lib/api";
 
 export const runtime = "nodejs";
@@ -47,6 +49,7 @@ export async function GET() {
     const active = await hasActiveMembership(user.id);
     const isStaff = user.role === "INSTRUCTOR" || user.role === "ADMIN";
 
+    const leadMinutes = await getMeetLeadMinutes();
     const data: any = {
       id: cls.id,
       date: cls.date,
@@ -55,6 +58,7 @@ export async function GET() {
       status: cls.status,
       scheduleName: cls.schedule.name,
       hasMeet: Boolean(cls.meetUrl),
+      meetAvailableAt: meetAvailableAt(istDateTime(cls.date, cls.startTime), leadMinutes).toISOString(),
       meetUrl: active || isStaff ? cls.meetUrl : null,
       reminderSent: Boolean(cls.reminderSentAt),
       canJoin: active || isStaff,

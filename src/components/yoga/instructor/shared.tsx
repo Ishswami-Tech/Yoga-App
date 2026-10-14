@@ -103,7 +103,7 @@ export function PageHeading({
 const STATUS_MAP: Record<ClassStatus, { label: string; tone: ChipTone; strike?: boolean }> = {
   READY: { label: "Ready", tone: "sage" },
   COMPLETED: { label: "Completed", tone: "neutral" },
-  PENDING_MEET: { label: "Meet pending", tone: "marigold" },
+  PENDING_MEET: { label: "Link not created yet", tone: "marigold" },
   CANCELLED: { label: "Cancelled", tone: "neutral", strike: true },
   FAILED: { label: "Failed", tone: "terracotta" },
 };

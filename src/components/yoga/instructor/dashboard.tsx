@@ -59,6 +59,8 @@ type ClassItem = {
   reminderSentAt?: string | null;
   /** Scheduled WhatsApp reminder time (ISO). Shown when the API provides it. */
   reminderAt?: string | null;
+  /** When the Meet link will be created (class start minus lead time, ISO). */
+  meetAvailableAt?: string | null;
 };
 
 type RosterPreview = {
@@ -391,6 +393,7 @@ function TodayRow({
 
   const reminderTime = istClock(c.reminderAt);
   const sentTime = istClock(c.reminderSentAt);
+  const meetAt = istClock(c.meetAvailableAt);
   const actionable = !isCompleted && !isCancelled;
 
   return (
@@ -443,7 +446,7 @@ function TodayRow({
               type="text"
               readOnly
               value={c.meetUrl ?? ""}
-              placeholder="Being created automatically…"
+              placeholder={meetAt ? `Available at ${meetAt}` : "Created automatically before class"}
               className="h-14 w-full rounded-[1.25rem] border-2 border-[#FFF4E0] bg-[#FFF4E0] px-4 text-base font-bold text-ink placeholder:text-ink/70 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-marigold"
             />
           </div>
@@ -475,7 +478,8 @@ function TodayRow({
               className={`h-14 px-6 ${INK_OUTLINE}`}
               disabled
             >
-              <ExternalLink className="h-5 w-5" /> No link yet
+              <ExternalLink className="h-5 w-5" />{" "}
+              {meetAt ? `Link available at ${meetAt}` : "Link not ready yet"}
             </Button>
           )}
         </div>
@@ -494,7 +498,9 @@ function TodayRow({
             </StatusChip>
           ) : (
             <StatusChip tone="marigold" icon={<Clock />} className="min-h-8 text-[13px]">
-              Meet link will be created automatically
+              {meetAt
+                ? `Meet link will be created automatically at ${meetAt}`
+                : "Meet link is created automatically 1-2 hours before class"}
             </StatusChip>
           )}
           {c.reminderSentAt ? (

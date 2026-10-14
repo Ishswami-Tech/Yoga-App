@@ -75,5 +75,7 @@ export const settingsSchema = z.object({
   razorpayPlanCurrency: z.string().default("INR"),
   whatsappTemplate: z.string().optional(),
   lookAheadDays: z.number().int().min(1).max(30).default(2),
-  reminderMinutesBefore: z.number().int().min(1).max(180).default(15),
+  reminderMinutesBefore: z.number().int().min(5).max(60).default(15),
+  // Minutes before class start when that day's Meet link is created.
+  meetLeadMinutes: z.number().int().min(30).max(240).default(90),
 });

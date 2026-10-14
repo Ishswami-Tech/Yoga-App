@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasActiveMembership } from "@/lib/services/subscriptions";
-import { istDateString, addDays } from "@/lib/services/scheduling";
+import { istDateString, addDays, istDateTime } from "@/lib/services/scheduling";
+import { meetAvailableAt } from "@/lib/services/meet-window";
+import { getMeetLeadMinutes } from "@/lib/services/class-generator";
 import { run, unauthorized } from "@/lib/api";
 
 export const runtime = "nodejs";
@@ -34,6 +36,7 @@ export async function GET(req: Request) {
       orderBy: { date: "asc" },
     });
 
+    const leadMinutes = await getMeetLeadMinutes();
     const data = classes.map((c) => ({
       id: c.id,
       date: c.date,
@@ -42,6 +45,7 @@ export async function GET(req: Request) {
       status: c.status,
       scheduleName: c.schedule.name,
       hasMeet: Boolean(c.meetUrl),
+      meetAvailableAt: meetAvailableAt(istDateTime(c.date, c.startTime), leadMinutes).toISOString(),
       meetUrl: active || isStaff ? c.meetUrl : null,
       reminderSent: Boolean(c.reminderSentAt),
       canJoin: active || isStaff,

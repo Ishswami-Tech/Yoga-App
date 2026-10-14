@@ -16,6 +16,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   razorpayPlanAmount: "150000", // paise
   lookAheadDays: "3",
   reminderMinutesBefore: "15",
+  meetLeadMinutes: "90",
   whatsappTemplate: "yoga_class_reminder_v1",
 };
 
