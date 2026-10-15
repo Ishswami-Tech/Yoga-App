@@ -75,14 +75,14 @@ export function AppShell({
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <header className="sticky top-0 z-40 bg-secondary/90 backdrop-blur shadow-[0_6px_20px_-12px_rgb(59_31_26/0.35)]">
-        <div className="flex h-16 px-4 items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <BrandLogo size={52} className="shrink-0" priority />
+        <div className="flex h-16 px-3 sm:px-4 items-center justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <BrandLogo size={46} className="shrink-0" priority />
             <div className="min-w-0">
-              <p className="font-display text-lg font-semibold tracking-tight truncate">
+              <p className="font-display text-sm sm:text-lg leading-tight font-semibold tracking-tight line-clamp-2 sm:truncate">
                 {APP_NAME}
               </p>
-              <p className="text-xs font-semibold text-muted-foreground">
+              <p className="hidden sm:block text-xs font-semibold text-muted-foreground">
                 {role === "ADMIN"
                   ? "Admin console"
                   : role === "INSTRUCTOR"
@@ -92,11 +92,12 @@ export function AppShell({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-0 sm:gap-2">
             {role === "ADMIN" && <NotificationsBell />}
             <Button
               variant="ghost"
               size="icon"
+              className="size-10 sm:size-11"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               aria-label="Toggle theme"
             >
@@ -105,7 +106,7 @@ export function AppShell({
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="gap-2 px-2">
+                <Button variant="ghost" className="gap-1 px-1.5 sm:gap-2 sm:px-2">
                   <Avatar className="h-7 w-7">
                     <AvatarFallback className="bg-accent text-foreground text-xs font-bold">
                       {initials}

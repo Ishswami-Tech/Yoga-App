@@ -4,6 +4,8 @@ import { requireAuth, toAuthUser } from "@/lib/auth";
 import { profileCompleteSchema } from "@/lib/validation";
 import { run, fromZodError, fail } from "@/lib/api";
 import { isUniqueViolation } from "@/lib/prisma-errors";
+import { emailConfigured } from "@/lib/providers/email";
+import { decideProfileEmail } from "@/lib/email-otp-config";
 import { audit } from "@/lib/services/audit";
 
 export const runtime = "nodejs";
@@ -12,8 +14,8 @@ const EMAIL_TAKEN = "This email is already registered. Use a different email.";
 
 // POST /api/profile/complete
 //
-// Finishes the profile (name, accepted terms, and a real email when the account only has the
-// phone-signup placeholder). Requires a verified WhatsApp number first, whatever the sign-in method.
+// Finishes the profile (name, accepted terms). A real email must already be verified through
+// /api/profile/email/* when email delivery is configured (EMAIL_REQUIRED otherwise). Requires a verified WhatsApp number first, whatever the sign-in method.
 // Idempotent: calling it again just updates name/email the same way.
 export async function POST(req: NextRequest) {
   return run(async () => {
@@ -27,15 +29,25 @@ export async function POST(req: NextRequest) {
       return fail("Please verify your WhatsApp number first.", 409, { code: "PHONE_REQUIRED" });
     }
 
-    // Required only while the account still has the placeholder address.
-    if (user.emailIsPlaceholder && !parsed.data.email) {
+    const decision = decideProfileEmail({
+      currentEmail: user.email,
+      isPlaceholder: user.emailIsPlaceholder,
+      emailVerified: user.emailVerified,
+      claimedEmail: parsed.data.email,
+      deliveryConfigured: emailConfigured(),
+    });
+    if (decision.kind === "require_verification") {
+      // A typed address is never stored: it must be proven with a code first (/api/profile/email/*).
+      return fail("Please verify your email address first.", 409, { code: "EMAIL_REQUIRED" });
+    }
+    if (decision.kind === "claim_required") {
       return fail("Validation failed", 422, {
         code: "VALIDATION",
         details: [{ path: ["email"], message: "Enter a valid email address" }],
       });
     }
-    const newEmail =
-      parsed.data.email && parsed.data.email !== user.email.toLowerCase() ? parsed.data.email : undefined;
+    // Fallback only (email delivery not configured): an unverified claim, as before.
+    const newEmail = decision.kind === "claim" ? decision.email : undefined;
 
     if (newEmail) {
       const owner = await db.user.findUnique({ where: { email: newEmail }, select: { id: true } });

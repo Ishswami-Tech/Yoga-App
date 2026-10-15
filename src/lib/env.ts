@@ -27,6 +27,30 @@ export const OPTIONAL_ENV = [
   "NEXT_PUBLIC_APP_NAME",
 ] as const;
 
+/**
+ * Integrations that are not required to boot. The health report says which are configured (by name
+ * only, never values) so a missing one is visible without failing validation.
+ */
+export const OPTIONAL_INTEGRATION_VARS = [
+  "META_APP_SECRET",
+  "META_WA_VERIFY_TOKEN",
+  "PAYMENT_BRIDGE_URL",
+  "PAYMENT_BRIDGE_SECRET",
+  "PAYMENT_BRIDGE_APP_ID",
+  "ZEPTOMAIL_TOKEN",
+  "EMAIL_FROM_ADDRESS",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+] as const;
+
+export type OptionalIntegrationVar = (typeof OPTIONAL_INTEGRATION_VARS)[number];
+
+export function optionalIntegrationsReport(env: NodeJS.ProcessEnv = process.env): Record<OptionalIntegrationVar, boolean> {
+  return Object.fromEntries(
+    OPTIONAL_INTEGRATION_VARS.map((name) => [name, Boolean(env[name]?.trim())])
+  ) as Record<OptionalIntegrationVar, boolean>;
+}
+
 export type EnvReport = {
   ok: boolean;
   /** Names of required variables that are missing or invalid (never values). */
@@ -41,6 +65,8 @@ export type EnvReport = {
     whatsapp: boolean;
     googleCalendar: boolean;
   };
+  /** Optional integrations: true when configured. Not part of `ok`. */
+  optionalIntegrations: Record<OptionalIntegrationVar, boolean>;
 };
 
 export function validateEnv(env: NodeJS.ProcessEnv = process.env): EnvReport {
@@ -70,6 +96,7 @@ export function validateEnv(env: NodeJS.ProcessEnv = process.env): EnvReport {
         "GOOGLE_CALENDAR_REFRESH_TOKEN"
       ),
     },
+    optionalIntegrations: optionalIntegrationsReport(env),
   };
 }
 

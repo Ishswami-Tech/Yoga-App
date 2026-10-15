@@ -45,6 +45,17 @@ export type CreatedSubscription = {
 };
 
 const API_BASE = "https://api.razorpay.com/v1";
+const TIMEOUT_MS = 10_000;
+
+/** fetch with a 10s timeout; a timeout/network failure becomes a clean Error instead of an abort. */
+async function rzpFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  } catch (e) {
+    const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+    throw new Error(timedOut ? "Razorpay request timed out" : "Razorpay network error");
+  }
+}
 const SUBSCRIPTION_TOTAL_COUNT = 120; // 10 years of monthly billing; the student can cancel any time.
 
 type Credentials = { keyId: string; keySecret: string };
@@ -88,7 +99,7 @@ async function rzpRequest<T>(
   body?: unknown
 ): Promise<T> {
   const credentials = requireCredentials();
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await rzpFetch(`${API_BASE}${path}`, {
     method,
     headers: { "Content-Type": "application/json", Authorization: authHeader(credentials) },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -115,7 +126,7 @@ async function ensureLivePlan(
   const key = `razorpayLivePlan_${amount}`;
   const cached = await db.appSettings.findUnique({ where: { key } });
   if (cached?.value) return cached.value;
-  const response = await fetch(`${API_BASE}/plans`, {
+  const response = await rzpFetch(`${API_BASE}/plans`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: authHeader(credentials) },
     body: JSON.stringify({
@@ -138,7 +149,7 @@ async function createLiveSubscription(
 ): Promise<CreatedSubscription> {
   const amount = input.amount ?? RAZORPAY_PLAN_AMOUNT;
   const planId = await ensureLivePlan(amount, credentials);
-  const response = await fetch(`${API_BASE}/subscriptions`, {
+  const response = await rzpFetch(`${API_BASE}/subscriptions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

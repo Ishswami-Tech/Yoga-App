@@ -28,6 +28,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
+import { istDateString } from "@/lib/services/scheduling";
 import { PageHeader, ErrorCard } from "./shared";
 import { prettyTime, prettyDate } from "@/components/yoga/student/format";
 
@@ -208,7 +209,7 @@ export function CalendarView() {
           {/* Day cells */}
           <div className="grid grid-cols-7 gap-1.5 p-2 sm:gap-2 sm:p-3">
             {q.data.days.map((day) => {
-              const isToday = day.date === new Date().toISOString().slice(0, 10);
+              const isToday = day.date === istDateString(new Date());
               const tint = dayTint(day);
               const interactive = day.classes.length > 0 || !!day.exception;
               return (

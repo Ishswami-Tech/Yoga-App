@@ -125,8 +125,10 @@ export function SchedulesView() {
       qc.invalidateQueries({ queryKey: ["admin", "schedules"] });
       qc.invalidateQueries({ queryKey: ["admin", "dashboard"] });
     },
-    onError: (e: ApiError) =>
-      toast.error("Couldn't delete schedule", { description: e.message }),
+    onError: (e: ApiError) => {
+      setDeletingId(null);
+      toast.error("Couldn't delete schedule", { description: e.message });
+    },
   });
 
   return (
@@ -190,6 +192,25 @@ export function SchedulesView() {
               s={s}
               onEdit={() => setEditing(s)}
               onDelete={() => setDeletingId(s)}
+              onToggleActive={() =>
+                updateMut.mutate({
+                  id: s.id,
+                  body: {
+                    name: s.name,
+                    timezone: s.timezone,
+                    startTime: s.startTime,
+                    endTime: s.endTime,
+                    active: !s.active,
+                    monday: s.monday,
+                    tuesday: s.tuesday,
+                    wednesday: s.wednesday,
+                    thursday: s.thursday,
+                    friday: s.friday,
+                    saturday: s.saturday,
+                    sunday: s.sunday,
+                  },
+                })
+              }
             />
           ))}
         </div>
@@ -227,7 +248,7 @@ export function SchedulesView() {
           <DialogHeader>
             <DialogTitle>Edit {editing?.name ?? "schedule"}</DialogTitle>
             <DialogDescription>
-              Existing generated classes are not retroactively changed.
+              Changing the start or end time updates upcoming classes; their Meet link is recreated before class.
             </DialogDescription>
           </DialogHeader>
           {editing && (
@@ -254,9 +275,8 @@ export function SchedulesView() {
               Delete {deletingId?.name ?? "schedule"}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              All generated classes for this schedule remain in the system.
-              Future look-ahead windows will simply stop creating new classes
-              for it.
+              Only schedules with no class history can be deleted. If this one
+              has past classes, attendance or feedback, use Deactivate instead.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -283,10 +303,12 @@ function ScheduleCard({
   s,
   onEdit,
   onDelete,
+  onToggleActive,
 }: {
   s: Schedule;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleActive: () => void;
 }) {
   return (
     <article
@@ -339,6 +361,9 @@ function ScheduleCard({
       <div className="mt-5 flex flex-wrap gap-3">
         <Button variant="outline" onClick={onEdit} aria-label="Edit schedule">
           <Pencil className="h-4 w-4" /> Edit
+        </Button>
+        <Button variant="outline" onClick={onToggleActive}>
+          {s.active ? "Deactivate" : "Activate"}
         </Button>
         <Button
           variant="ghost"

@@ -227,7 +227,7 @@ export function TodayView() {
       </Card>
 
       {/* Details grid */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card>
           <CardContent className="p-5 space-y-2">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { ZodError } from "zod";
+import { isSameOriginRequest } from "@/lib/csrf";
 
 export type ApiError = {
   error: string;
@@ -37,9 +39,35 @@ export function fromZodError(e: ZodError) {
   });
 }
 
+/**
+ * Cross-site write guard. Route handlers rarely pass the request to run(), so
+ * without it the method is inferred from the headers: browsers send Origin on
+ * every cross-origin request and on all same-origin writes, but not on plain
+ * same-origin GETs or navigations. Outside a request scope the check is skipped.
+ */
+async function crossSiteBlocked(req?: Request): Promise<boolean> {
+  try {
+    const h = req ? req.headers : await headers();
+    const origin = h.get("origin");
+    const method = req?.method ?? (origin ? "POST" : "GET");
+    return !isSameOriginRequest({
+      method,
+      origin,
+      secFetchSite: h.get("sec-fetch-site"),
+      appUrl: process.env.NEXT_PUBLIC_APP_URL,
+    });
+  } catch {
+    return false;
+  }
+}
+
 export async function run<T>(
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
+  req?: Request
 ): Promise<Response> {
+  if (await crossSiteBlocked(req)) {
+    return fail("Cross-site request blocked", 403, { code: "CSRF" });
+  }
   try {
     const data = await fn();
     if (data instanceof Response) return data;
@@ -56,11 +84,8 @@ export async function run<T>(
       const err = e as Error & { code?: string; status?: number };
       return fail(err.message, err.status ?? 409, { code: err.code ?? "SUBSCRIPTION" });
     }
+    // Detail stays server-side; never leak messages, stacks or schema names.
     console.error("[api] error", e);
-    return fail(
-      e instanceof Error ? e.message : "Internal server error",
-      500,
-      { code: "INTERNAL" }
-    );
+    return fail("Internal server error", 500, { code: "INTERNAL" });
   }
 }

@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { hasActiveMembership } from "@/lib/services/subscriptions";
 import { istDateString, istWeekday, istDateTime } from "@/lib/services/scheduling";
 import { meetAvailableAt } from "@/lib/services/meet-window";
+import { pickBestClass } from "@/lib/services/class-pick";
 import { getMeetLeadMinutes } from "@/lib/services/class-generator";
 import { run, unauthorized, forbidden, notFound } from "@/lib/api";
 
@@ -30,27 +31,31 @@ export async function GET() {
 
     // Filter by weekday + exception client-side (weekday flags are columns
     // not easily queryable through Prisma).
-    const eligible: typeof classes = [];
-    for (const cls of classes) {
-      const s = cls.schedule;
-      if (!s.active) continue;
-      const flag = weekdayFlag(s, weekday);
-      if (!flag) continue;
-      const exception = await db.classException.findUnique({
-        where: { scheduleId_date: { scheduleId: s.id, date: todayStr } },
-      });
-      if (exception?.type === "NO_CLASS") continue;
-      eligible.push(cls);
-    }
+    // One batched exception lookup for every schedule that has a class today.
+    const holidays = await db.classException.findMany({
+      where: {
+        date: todayStr,
+        type: "NO_CLASS",
+        scheduleId: { in: classes.map((c) => c.scheduleId) },
+      },
+      select: { scheduleId: true },
+    });
+    const holidayIds = new Set(holidays.map((h) => h.scheduleId));
+    const eligible = classes.filter(
+      (cls) =>
+        cls.schedule.active &&
+        weekdayFlag(cls.schedule, weekday) &&
+        !holidayIds.has(cls.scheduleId)
+    );
 
-    if (eligible.length === 0) return notFound("Today's class");
+    const best = pickBestClass(eligible, today);
+    if (!best) return notFound("Today's class");
 
-    const cls = eligible[0];
     const active = await hasActiveMembership(user.id);
     const isStaff = user.role === "INSTRUCTOR" || user.role === "ADMIN";
 
     const leadMinutes = await getMeetLeadMinutes();
-    const data: any = {
+    const toItem = (cls: (typeof eligible)[number]) => ({
       id: cls.id,
       date: cls.date,
       startTime: cls.startTime,
@@ -64,7 +69,9 @@ export async function GET() {
       canJoin: active || isStaff,
       membershipRequired: !active && !isStaff,
       notes: active || isStaff ? cls.notes : null,
-    };
+    });
+    const sorted = [...eligible].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    const data = { ...toItem(best), classes: sorted.map(toItem) };
     return NextResponse.json(data);
   });
 }

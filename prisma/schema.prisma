@@ -118,6 +118,7 @@ model Subscription {
 
   @@index([userId])
   @@index([status])
+  @@index([userId, createdAt])
 }
 
 model Payment {
@@ -231,6 +232,7 @@ model YogaClass {
   @@index([date])
   @@index([status])
   @@index([reminderAt])
+  @@index([date, status])
 }
 
 model WhatsAppMessage {

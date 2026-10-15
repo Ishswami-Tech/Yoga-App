@@ -63,3 +63,40 @@ describe("verifyMetaHandshake", () => {
     expect(verifyMetaHandshake("", ok)).toEqual({ ok: false, status: 503 });
   });
 });
+
+import { allowedPriorStatuses, canAdvance, extractStatuses } from "@/lib/providers/whatsapp-webhook";
+
+describe("extractStatuses", () => {
+  const st = (id: string, status: string, extra: object = {}) => ({ id, status, ...extra });
+  test("reads all entries, changes and statuses, ordered sent->read", () => {
+    const payload = {
+      entry: [
+        { changes: [{ value: { statuses: [st("a", "read"), st("b", "sent")] } }, { value: {} }] },
+        { changes: [{ value: { statuses: [st("c", "delivered")] } }] },
+      ],
+    };
+    expect(extractStatuses(payload).map((s) => s.id)).toEqual(["b", "c", "a"]);
+  });
+  test("ignores malformed items and unknown statuses", () => {
+    expect(extractStatuses(null)).toEqual([]);
+    expect(extractStatuses({ entry: [{ changes: [{ value: { statuses: [{ status: "sent" }, st("x", "weird")] } }] }] })).toEqual([]);
+  });
+  test("captures failure error and caps the count", () => {
+    const f = extractStatuses({ entry: [{ changes: [{ value: { statuses: [st("f", "failed", { errors: [{ code: 131026, title: "Undeliverable" }] })] } }] }] });
+    expect(f[0]).toMatchObject({ status: "FAILED", errorCode: "131026", errorMessage: "Undeliverable" });
+    const many = Array.from({ length: 500 }, (_, i) => st(`m${i}`, "sent"));
+    expect(extractStatuses({ entry: [{ changes: [{ value: { statuses: many } }] }] })).toHaveLength(200);
+  });
+});
+
+describe("status ordering", () => {
+  test("moves forward only; FAILED never overwrites READ", () => {
+    expect(canAdvance("SENT", "DELIVERED")).toBe(true);
+    expect(canAdvance("READ", "DELIVERED")).toBe(false);
+    expect(canAdvance("DELIVERED", "SENT")).toBe(false);
+    expect(canAdvance("READ", "FAILED")).toBe(false);
+    expect(canAdvance("FAILED", "READ")).toBe(false);
+    expect(canAdvance("DELIVERED", "FAILED")).toBe(true);
+    expect(allowedPriorStatuses("SENT")).toEqual(["QUEUED"]);
+  });
+});

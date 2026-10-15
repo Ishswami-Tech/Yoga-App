@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApp, type SessionUser } from "@/lib/store";
-import { apiPost, ApiError } from "@/lib/api-client";
+import { apiGet, apiPost, ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import { BrandLogo } from "@/components/yoga/brand-logo";
 import { ProfilePhoneStep } from "@/components/yoga/profile-phone-step";
+import { ProfileEmailStep } from "@/components/yoga/profile-email-step";
+import { needsEmailVerification } from "@/lib/email-otp-config";
 import { Loader2 } from "lucide-react";
 
 const PLACEHOLDER_NAME = "New student";
@@ -32,7 +34,17 @@ export function ProfileCompletionDialog() {
   const queryClient = useQueryClient();
   // Fixed at mount so the step list does not change once the phone is verified.
   const [needsPhone] = useState(user?.phoneVerified === false);
-  const needsEmail = user?.emailIsPlaceholder === true;
+  const { data: methods } = useQuery({
+    queryKey: ["auth-methods"],
+    queryFn: () => apiGet<{ email: boolean }>("/api/auth/methods"),
+    staleTime: 5 * 60 * 1000,
+  });
+  const methodsLoading = methods === undefined;
+  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
+  // Code-verified flow (email delivery configured) vs the simple unverified field (fallback).
+  const verifyFlow =
+    verifiedEmail !== null || (user ? needsEmailVerification(user, methods?.email === true) : false);
+  const needsEmailClaim = user?.emailIsPlaceholder === true && !verifyFlow && !methodsLoading;
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState(
     user?.name && user.name.trim() !== PLACEHOLDER_NAME ? user.name : ""
@@ -48,7 +60,11 @@ export function ProfileCompletionDialog() {
   const trimmedEmail = email.trim();
   const detailsValid =
     trimmedName.length >= 2 && trimmedName.length <= 80 &&
-    (!needsEmail || EMAIL_RE.test(trimmedEmail));
+    (verifyFlow
+      ? verifiedEmail !== null
+      : user?.emailIsPlaceholder === true
+        ? !methodsLoading && EMAIL_RE.test(trimmedEmail)
+        : true);
   const showFinish = !needsPhone || (step === 2 && phoneDone);
 
   const submit = async () => {
@@ -58,7 +74,7 @@ export function ProfileCompletionDialog() {
     try {
       const res = await apiPost<{ user: Partial<SessionUser> }>("/api/profile/complete", {
         name: trimmedName,
-        ...(needsEmail ? { email: trimmedEmail } : {}),
+        ...(needsEmailClaim ? { email: trimmedEmail } : {}),
         acceptTerms: true,
       });
       set({ user: { ...user!, ...res.user, profileCompleted: true } });
@@ -68,6 +84,9 @@ export function ProfileCompletionDialog() {
       if (e instanceof ApiError && e.code === "PHONE_REQUIRED") {
         setStep(2);
         setError("Please verify your WhatsApp number first.");
+      } else if (e instanceof ApiError && e.code === "EMAIL_REQUIRED") {
+        setStep(1);
+        setError("Please verify your email address first.");
       } else if (e instanceof ApiError && e.code === "EMAIL_TAKEN") {
         setStep(1);
         setError("That email is already used by another account. Please use a different one.");
@@ -115,44 +134,56 @@ export function ProfileCompletionDialog() {
           <ProfilePhoneStep onVerified={(u) => { set({ user: { ...user!, ...u } }); setError(null); }} />
         )}
 
+        {step === 1 && (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-name" className="text-xs">Full name</Label>
+              <Input
+                id="profile-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your name"
+                autoComplete="name"
+                minLength={2}
+                maxLength={80}
+                autoFocus
+              />
+            </div>
+            {verifyFlow ? (
+              <ProfileEmailStep
+                verifiedEmail={verifiedEmail}
+                onVerified={(u) => {
+                  set({ user: { ...user!, ...u } });
+                  setVerifiedEmail(u.email);
+                  setError(null);
+                }}
+              />
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="profile-email" className="text-xs">Email</Label>
+                {user?.emailIsPlaceholder === true ? (
+                  <Input
+                    id="profile-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    disabled={methodsLoading}
+                  />
+                ) : (
+                  <Input id="profile-email" value={user?.email ?? ""} readOnly disabled />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {(step === 1 || (step === 2 && phoneDone)) && (
           <form
             className="space-y-3"
             onSubmit={(e) => { e.preventDefault(); if (showFinish) submit(); else goNext(); }}
           >
-            {step === 1 && (
-              <>
-                <div className="space-y-1.5">
-                  <Label htmlFor="profile-name" className="text-xs">Full name</Label>
-                  <Input
-                    id="profile-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Your name"
-                    autoComplete="name"
-                    minLength={2}
-                    maxLength={80}
-                    autoFocus
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="profile-email" className="text-xs">Email</Label>
-                  {needsEmail ? (
-                    <Input
-                      id="profile-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      autoComplete="email"
-                    />
-                  ) : (
-                    <Input id="profile-email" value={user?.email ?? ""} readOnly disabled />
-                  )}
-                </div>
-              </>
-            )}
-
             {step === 2 && phoneDone && (
               <p className="text-sm text-muted-foreground">Your WhatsApp number is verified. One last thing.</p>
             )}

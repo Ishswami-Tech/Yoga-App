@@ -24,14 +24,14 @@ export function PublicShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <header className="sticky top-0 z-40 w-full bg-secondary/90 backdrop-blur supports-[backdrop-filter]:bg-secondary/80 shadow-[0_6px_20px_-12px_rgb(59_31_26/0.35)]">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
+        <div className="container mx-auto flex h-16 items-center justify-between gap-2 px-3 sm:px-4">
           <button
             onClick={() => setView("landing")}
-            className="flex items-center gap-3 group min-h-11"
+            className="flex min-w-0 items-center gap-2 sm:gap-3 group min-h-11"
             aria-label={`${APP_NAME} home`}
           >
-            <BrandLogo size={54} className="shrink-0 group-hover:scale-105 transition" priority />
-            <span className="font-display text-base leading-tight sm:text-2xl font-semibold tracking-tight text-left">
+            <BrandLogo size={46} className="shrink-0 group-hover:scale-105 transition" priority />
+            <span className="min-w-0 font-display text-sm leading-tight sm:text-2xl font-semibold tracking-tight text-left">
               <span className="text-brand-gradient">{APP_NAME}</span>
             </span>
           </button>
@@ -54,7 +54,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
             </a>
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <Button
               variant="ghost"
               size="icon"

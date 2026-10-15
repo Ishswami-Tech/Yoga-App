@@ -1,38 +1,64 @@
 import { db } from "@/lib/db";
 import { cookies } from "next/headers";
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { isPlaceholderEmail } from "@/lib/email";
 
 export const SESSION_COOKIE = "yoga_session";
 export const SESSION_DAYS = 30;
+
+/**
+ * Session tokens are stored hashed (sha256 hex) so a database read leak does
+ * not yield live sessions; the cookie carries the raw random token.
+ * NOTE: sessions issued before this change stored the raw token, so they no
+ * longer match and simply stop working (no production users yet).
+ * The Session table is shared with Better Auth, which keeps its own raw token
+ * format in the same column; a 64-char sha256 hex of a legacy token cannot be
+ * looked up through Better Auth's cookie, so the two never interfere.
+ */
+export function hashSessionToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 export async function createSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + SESSION_DAYS);
   await db.session.create({
-    data: { userId, token, expiresAt },
+    data: { userId, token: hashSessionToken(token), expiresAt },
   });
   return token;
 }
 
 export async function destroySession(token: string): Promise<void> {
-  await db.session.deleteMany({ where: { token } }).catch(() => {});
+  await db.session
+    .deleteMany({ where: { token: hashSessionToken(token) } })
+    .catch(() => {});
 }
 
-export async function getSession(): Promise<{ userId: string } | null> {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (!token) return null;
+/** Deletes every session (legacy and Better Auth share the table) of a user; returns the count. */
+export async function revokeAllSessions(userId: string): Promise<number> {
+  const res = await db.session.deleteMany({ where: { userId } });
+  return res.count;
+}
+
+/** Resolves the user of a raw session token (null if unknown/expired). */
+export async function getUserIdForToken(token: string): Promise<string | null> {
   const session = await db.session.findUnique({
-    where: { token },
-    include: { user: true },
+    where: { token: hashSessionToken(token) },
   });
   if (!session) return null;
   if (session.expiresAt < new Date()) {
     await db.session.delete({ where: { id: session.id } }).catch(() => {});
     return null;
   }
-  return { userId: session.userId };
+  return session.userId;
+}
+
+export async function getSession(): Promise<{ userId: string } | null> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+  const userId = await getUserIdForToken(token);
+  return userId ? { userId } : null;
 }
 
 export type AuthUser = {

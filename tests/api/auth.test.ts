@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { PrismaClient } from "@prisma/client";
-import { ACCOUNTS, BASE, api, plantOtp, postProfileComplete, registerStudent, signIn, testPhone, uniqueEmail, verifyWith } from "./helpers";
+import { ACCOUNTS, BASE, api, plantEmailOtp, plantOtp, postJson, postProfileComplete, registerStudent, signIn, testPhone, uniqueEmail, verifyWith } from "./helpers";
 
 const db = new PrismaClient();
 
@@ -114,16 +114,24 @@ describe("auth (WhatsApp OTP only)", () => {
       }
     });
 
+    // The email is proven with a code first (/api/profile/email/*), then the profile is completed.
+    async function verifyEmail(cookie: string, email: string) {
+      // The server normalises addresses to lowercase, so the planted code must use that form.
+      const code = await plantEmailOtp(email.trim().toLowerCase());
+      return postJson("/api/profile/email/verify", { email, code }, cookie);
+    }
+
     test("completes the profile and flips profileCompleted to true", async () => {
       const { cookie } = await registerStudent();
       const email = uniqueEmail();
-      const r = await postProfileComplete(cookie, { name: "  Asha Rao ", email: email.toUpperCase(), acceptTerms: true });
+      expect((await verifyEmail(cookie, email.toUpperCase())).status).toBe(200);
+      const r = await postProfileComplete(cookie, { name: "  Asha Rao ", acceptTerms: true });
       expect(r.status).toBe(200);
       expect(r.json.user).toMatchObject({ name: "Asha Rao", email, role: "STUDENT", profileCompleted: true });
       const me = await fetch(`${BASE}/api/auth/me`, { headers: { cookie } });
       expect((await me.json()).user.profileCompleted).toBe(true);
-      // Idempotent: a second call updates name/email the same way.
-      const again = await postProfileComplete(cookie, { name: "Asha R", email, acceptTerms: true });
+      // Idempotent: a second call updates the name the same way.
+      const again = await postProfileComplete(cookie, { name: "Asha R", acceptTerms: true });
       expect(again.status).toBe(200);
       expect(again.json.user.name).toBe("Asha R");
     });
@@ -132,8 +140,8 @@ describe("auth (WhatsApp OTP only)", () => {
       const a = await registerStudent();
       const b = await registerStudent();
       const email = uniqueEmail();
-      expect((await postProfileComplete(a.cookie, { name: "Owner One", email, acceptTerms: true })).status).toBe(200);
-      const r = await postProfileComplete(b.cookie, { name: "Other Two", email, acceptTerms: true });
+      expect((await verifyEmail(a.cookie, email)).status).toBe(200);
+      const r = await verifyEmail(b.cookie, email);
       expect(r.status).toBe(409);
       expect(r.json.code).toBe("EMAIL_TAKEN");
     });

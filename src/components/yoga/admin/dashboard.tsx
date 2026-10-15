@@ -41,6 +41,7 @@ import {
   istDateTime,
   todayIST,
 } from "./shared";
+import { JobStatusCard } from "./job-status";
 import { HeaderSun, CornerSun } from "@/components/yoga/art/admin-art";
 
 type DashboardData = {
@@ -185,6 +186,8 @@ export function DashboardView() {
           )}
         </section>
       )}
+
+      <JobStatusCard />
 
       {/* KPI tiles */}
       <section aria-label="Key numbers" className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
@@ -332,7 +335,7 @@ export function DashboardView() {
         <h2 id="quick-links" className="font-display text-2xl font-semibold leading-tight tracking-tight">
           Quick links
         </h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <QuickLinkCard label="Students" href="#admin-users" icon={<Users className="h-4 w-4" />} />
           <QuickLinkCard label="Schedules" href="#admin-schedules" icon={<CalendarDays className="h-4 w-4" />} />
           <QuickLinkCard label="Subscriptions" href="#admin-subscriptions" icon={<RefreshCw className="h-4 w-4" />} />
@@ -454,7 +457,7 @@ function ForecastCard() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <div className="space-y-1 rounded-3xl bg-[#DCEBD8] p-4 text-[#244B2B]">
             <p className="text-xs font-extrabold uppercase tracking-[0.08em]">MRR (recurring)</p>
             <p className="font-display text-3xl font-bold">{formatINR(f.mrr)}</p>

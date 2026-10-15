@@ -66,6 +66,7 @@ const STATUS_FILTERS = [
   { value: "DELIVERED", label: "Delivered" },
   { value: "PENDING", label: "Pending" },
   { value: "FAILED", label: "Failed" },
+  { value: "RETRIED", label: "Retried" },
   { value: "IGNORED", label: "Ignored" },
 ];
 

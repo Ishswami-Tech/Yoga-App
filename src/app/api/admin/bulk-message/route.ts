@@ -3,8 +3,10 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { run, fail } from "@/lib/api";
 import { whatsapp } from "@/lib/providers/whatsapp";
+import { activeMembersWhere } from "@/lib/services/membership";
 import { audit } from "@/lib/services/audit";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 
@@ -14,13 +16,9 @@ const bodySchema = z.object({
   activeOnly: z.boolean().default(true),
 });
 
-function recipientWhere(activeOnly: boolean) {
-  return {
-    role: "STUDENT",
-    status: "ACTIVE",
-    whatsappNumber: { not: null },
-    ...(activeOnly ? { subscriptions: { some: { status: "ACTIVE" } } } : {}),
-  };
+function recipientWhere(activeOnly: boolean): Prisma.UserWhereInput {
+  if (activeOnly) return { AND: [activeMembersWhere(), { whatsappNumber: { not: null } }] };
+  return { role: "STUDENT", status: "ACTIVE", whatsappNumber: { not: null } };
 }
 
 // GET: real recipient count for the composer preview (?activeOnly=true|false).

@@ -35,8 +35,14 @@ export function prettyTime(hhmm: string | null | undefined): string {
 
 /** "2025-09-22" -> "Mon, 22 Sep 2025" (computed from UTC parts so the user's
  *  local timezone can never shift the day forward/back). */
-export function prettyDate(ymd: string | null | undefined): string {
-  if (!ymd) return "—";
+export function prettyDate(input: string | null | undefined): string {
+  if (!input) return "—";
+  let ymd = input;
+  // API timestamps (ISO date-times, UTC) are shown as the calendar date in IST.
+  if (/^\d{4}-\d{2}-\d{2}T/.test(input)) {
+    const t = new Date(input);
+    if (!Number.isNaN(t.getTime())) ymd = new Date(t.getTime() + 5.5 * 3600e3).toISOString().slice(0, 10);
+  }
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
   if (!m) return ymd;
   const y = parseInt(m[1], 10);

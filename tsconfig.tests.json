@@ -1,0 +1,8 @@
+{
+  // Type-checks the Bun/Playwright test files, which are excluded from the app build (tsconfig.json).
+  //   bunx tsc --noEmit -p tsconfig.tests.json
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["bun-types"], "noEmit": true },
+  "include": ["tests/**/*.ts", "playwright.config.ts", "next-env.d.ts", "src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "examples", "mini-services"]
+}

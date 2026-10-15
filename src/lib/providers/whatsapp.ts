@@ -70,6 +70,7 @@ async function sendLive(
           ],
         },
       }),
+      signal: AbortSignal.timeout(10_000),
     });
     const data = (await res.json().catch(() => null)) as {
       messages?: { id?: string }[];

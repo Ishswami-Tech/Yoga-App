@@ -64,7 +64,7 @@ export function BulkMessageView() {
         description="Send a custom WhatsApp message to all active members. Use sparingly."
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         {/* Composer */}
         <div className="md:col-span-2 space-y-4">
           <Card>

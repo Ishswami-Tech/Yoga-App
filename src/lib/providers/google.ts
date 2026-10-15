@@ -40,11 +40,21 @@ function liveCredentials(): Credentials | null {
   return { clientId, clientSecret, refreshToken, calendarId: process.env.GOOGLE_CALENDAR_ID?.trim() || "primary" };
 }
 
+/** fetch with a timeout; timeouts/network failures become a clean Error (callers already handle throws). */
+async function gFetch(url: string, init: RequestInit, timeoutMs = 10_000): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  } catch (e) {
+    const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+    throw new Error(timedOut ? "Google request timed out" : "Google network error");
+  }
+}
+
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
 async function accessToken(c: Credentials): Promise<string> {
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.value;
-  const res = await fetch(TOKEN_URL, {
+  const res = await gFetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -71,6 +81,7 @@ type CalendarEvent = {
     entryPoints?: { entryPointType?: string; uri?: string }[];
   };
   error?: { message?: string };
+  items?: CalendarEvent[];
 };
 
 function meetUrlOf(ev: CalendarEvent): string | null {
@@ -83,25 +94,46 @@ async function createLiveMeet(input: CreateMeetInput, c: Credentials): Promise<C
   const calendar = encodeURIComponent(c.calendarId);
   // requestId makes the call idempotent: retrying the same (schedule, date) reuses the same conference.
   const requestId = createHash("sha256").update(`${input.scheduleId}:${input.date}`).digest("hex").slice(0, 32);
-  const res = await fetch(`${CALENDAR_API}/calendars/${calendar}/events?conferenceDataVersion=1&sendUpdates=none`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      summary: input.name,
-      start: { dateTime: `${input.date}T${input.startTime}:00`, timeZone: input.timezone },
-      end: { dateTime: `${input.date}T${input.endTime}:00`, timeZone: input.timezone },
-      conferenceData: { createRequest: { requestId, conferenceSolutionKey: { type: "hangoutsMeet" } } },
-    }),
-  });
-  let ev = (await res.json().catch(() => null)) as CalendarEvent | null;
-  if (!res.ok || !ev?.id) {
-    throw new Error(`Google Calendar event creation failed: ${ev?.error?.message ?? res.status}`);
+  // Idempotency across retries (e.g. the DB update after creation failed): the event is tagged with a
+  // private extended property; if one already exists for this (schedule, date) reuse it, never duplicate.
+  const classKey = `${input.scheduleId}:${input.date}`;
+  let ev: CalendarEvent | null = null;
+  const existingRes = await gFetch(
+    `${CALENDAR_API}/calendars/${calendar}/events?privateExtendedProperty=${encodeURIComponent(`vishwayogClassKey=${classKey}`)}&showDeleted=false&maxResults=1`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (existingRes.ok) {
+    const list = (await existingRes.json().catch(() => null)) as CalendarEvent | null;
+    const found = list?.items?.find((e) => e.id);
+    if (found) ev = found;
   }
+  if (!ev) {
+    const res = await gFetch(
+      `${CALENDAR_API}/calendars/${calendar}/events?conferenceDataVersion=1&sendUpdates=none`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          summary: input.name,
+          start: { dateTime: `${input.date}T${input.startTime}:00`, timeZone: input.timezone },
+          end: { dateTime: `${input.date}T${input.endTime}:00`, timeZone: input.timezone },
+          extendedProperties: { private: { vishwayogClassKey: classKey } },
+          conferenceData: { createRequest: { requestId, conferenceSolutionKey: { type: "hangoutsMeet" } } },
+        }),
+      },
+      15_000
+    );
+    ev = (await res.json().catch(() => null)) as CalendarEvent | null;
+    if (!res.ok || !ev?.id) {
+      throw new Error(`Google Calendar event creation failed: ${ev?.error?.message ?? res.status}`);
+    }
+  }
+  if (!ev.id) throw new Error("Google Calendar event has no id");
   const eventId = ev.id;
   // Conference creation can be asynchronous: poll the event briefly until the Meet link exists.
   for (let attempt = 0; attempt < 5 && !meetUrlOf(ev); attempt++) {
     await new Promise((r) => setTimeout(r, 800));
-    const again = await fetch(`${CALENDAR_API}/calendars/${calendar}/events/${encodeURIComponent(eventId)}?conferenceDataVersion=1`, {
+    const again = await gFetch(`${CALENDAR_API}/calendars/${calendar}/events/${encodeURIComponent(eventId)}?conferenceDataVersion=1`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const next = (await again.json().catch(() => null)) as CalendarEvent | null;
@@ -133,7 +165,7 @@ export const googleMeet = {
     const live = liveCredentials();
     if (!live) return;
     const token = await accessToken(live);
-    await fetch(`${CALENDAR_API}/calendars/${encodeURIComponent(live.calendarId)}/events/${encodeURIComponent(googleEventId)}?sendUpdates=none`, {
+    await gFetch(`${CALENDAR_API}/calendars/${encodeURIComponent(live.calendarId)}/events/${encodeURIComponent(googleEventId)}?sendUpdates=none`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     });

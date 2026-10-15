@@ -111,7 +111,7 @@ export function DashboardView() {
       )}
 
       {/* STATE + TODAY + NEXT grid */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         {/* Membership state */}
         <Card className="rounded-3xl shadow-soft">
           <CardContent className="p-5 space-y-3">

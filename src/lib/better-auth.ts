@@ -27,10 +27,10 @@ const prisma = new PrismaClient();
 function authSecret(): string {
   const secret = process.env.AUTH_SECRET;
   if (secret) return secret;
-  if (process.env.NODE_ENV === "production" && process.env.NEXT_PHASE !== "phase-production-build") {
-    throw new Error("AUTH_SECRET must be set in production");
-  }
-  return "yoga-dev-auth-secret-v1";
+  // Weak fallback only for explicit local development (never test/staging/prod).
+  if (process.env.NODE_ENV === "development") return "yoga-dev-auth-secret-v1";
+  if (process.env.NEXT_PHASE === "phase-production-build") return "build-time-placeholder-secret";
+  throw new Error("AUTH_SECRET must be set");
 }
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;

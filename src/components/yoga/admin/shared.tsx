@@ -95,6 +95,10 @@ const STATUS_MAP: Record<
     label: "Ignored",
     className: CHIP_NEU,
   },
+  RETRIED: {
+    label: "Retried",
+    className: CHIP_NEU,
+  },
   COMPLETED: {
     label: "Completed",
     className: CHIP_NEU,

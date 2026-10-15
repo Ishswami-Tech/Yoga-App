@@ -29,6 +29,7 @@ import {
   parseReminderMinutes,
   shouldCreateMeetNow,
 } from "./meet-window";
+import { cancelClassesOn } from "./class-sync";
 import { googleMeet } from "@/lib/providers/google";
 import type { ClassSchedule } from "@prisma/client";
 
@@ -115,10 +116,7 @@ export async function generateClasses(opts?: {
       if (exception?.type === "NO_CLASS") {
         result.skippedHoliday++;
         // If a class was somehow created earlier, mark it CANCELLED.
-        await db.yogaClass.updateMany({
-          where: { scheduleId: schedule.id, date: dateStr },
-          data: { status: "CANCELLED" },
-        });
+        await cancelClassesOn(schedule.id, dateStr);
         continue;
       }
 

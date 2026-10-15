@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { run, fromZodError } from "@/lib/api";
 import { exceptionSchema } from "@/lib/validation";
+import { cancelClassesOn, restoreCancelledOn } from "@/lib/services/class-sync";
 import { audit } from "@/lib/services/audit";
 
 export const runtime = "nodejs";
@@ -44,10 +45,10 @@ export async function POST(req: NextRequest) {
     });
     // If NO_CLASS, cancel any already-generated class for that date.
     if (parsed.data.type === "NO_CLASS") {
-      await db.yogaClass.updateMany({
-        where: { scheduleId: parsed.data.scheduleId, date: parsed.data.date },
-        data: { status: "CANCELLED" },
-      });
+      await cancelClassesOn(parsed.data.scheduleId, parsed.data.date);
+    } else {
+      // Changed from NO_CLASS to another type: bring the class back.
+      await restoreCancelledOn(parsed.data.scheduleId, parsed.data.date);
     }
     await audit({
       actorUserId: admin.id,

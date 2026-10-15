@@ -2,7 +2,8 @@
 //
 // Membership is the application-level concept; Subscription is the persisted
 // provider record. "Active membership" = the user has at least one
-// Subscription with status ACTIVE and an endDate in the future (or null).
+// Subscription that is entitled per lib/services/membership.ts (ACTIVE within a 24h grace after
+// endDate, or CANCELLED with paid time left), or a PAID one-time order still covering today.
 
 import { getPlanAmount } from "@/lib/services/pricing";
 import { db } from "@/lib/db";
@@ -13,6 +14,7 @@ import {
   razorpay,
   type RazorpaySubscriptionEntity,
 } from "@/lib/providers/razorpay";
+import { deriveSubscriptionState, selectBestSubscription } from "@/lib/services/membership";
 import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
 
@@ -49,7 +51,7 @@ export async function getMembershipState(userId: string): Promise<{
   if (fromSubscription.state === "ACTIVE") return fromSubscription;
 
   const order = await db.paymentOrder.findFirst({
-    where: { userId, status: "PAID", coversUntil: { gt: new Date() } },
+    where: { userId, status: "PAID", coversUntil: { gte: new Date() } },
     orderBy: { coversUntil: "desc" },
   });
   if (order) return { state: "ACTIVE", order };
@@ -109,27 +111,15 @@ async function getSubscriptionState(userId: string): Promise<{
   state: MembershipState;
   subscription?: SubscriptionRow;
 }> {
-  const sub = await db.subscription.findFirst({
+  const rows = await db.subscription.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
+    take: 25,
   });
-  if (!sub) return { state: "NONE" };
-
   const now = new Date();
-  // A cancelled subscription keeps access until the end of the period that was already paid for.
-  if (sub.status === "CANCELLED") {
-    if (sub.endDate && sub.endDate > now) return { state: "ACTIVE", subscription: sub };
-    return { state: "CANCELLED", subscription: sub };
-  }
-  if (sub.status === "HALTED") return { state: "HALTED", subscription: sub };
-  if (sub.status === "ACTIVE") {
-    if (sub.endDate && sub.endDate < now) return { state: "EXPIRED", subscription: sub };
-    return { state: "ACTIVE", subscription: sub };
-  }
-  if (sub.status === "EXPIRED" || sub.status === "FAILED")
-    return { state: "EXPIRED", subscription: sub };
-  // CREATED / PENDING
-  return { state: "PENDING", subscription: sub };
+  const sub = selectBestSubscription(rows, now);
+  if (!sub) return { state: "NONE" };
+  return { state: deriveSubscriptionState(sub, now), subscription: sub };
 }
 
 export async function hasActiveMembership(userId: string): Promise<boolean> {

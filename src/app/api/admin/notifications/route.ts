@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { run } from "@/lib/api";
+import { activeMembersWhere } from "@/lib/services/membership";
 import { istDateString } from "@/lib/services/scheduling";
 
 export const runtime = "nodejs";
@@ -52,10 +53,7 @@ export async function GET() {
       }),
       db.user.count({
         where: {
-          role: "STUDENT",
-          status: "ACTIVE",
-          subscriptions: { some: { status: "ACTIVE" } },
-          OR: [{ whatsappNumber: null }, { whatsappNumber: "" }],
+          AND: [activeMembersWhere(), { OR: [{ whatsappNumber: null }, { whatsappNumber: "" }] }],
         },
       }),
       db.yogaClass.count({

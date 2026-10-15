@@ -16,7 +16,9 @@
 
 import { db } from "@/lib/db";
 import { whatsapp, WHATSAPP_TEMPLATE_NAME } from "@/lib/providers/whatsapp";
-import { prettyTime } from "./scheduling";
+import { activeMembersWhere } from "@/lib/services/membership";
+import { istDateString, istDateTime, prettyTime } from "./scheduling";
+import { NON_RETRYABLE_ERROR_CODES, decideRetry } from "./retry-policy";
 
 // Soft time budget per job run (the worker route has maxDuration = 60s).
 const JOB_BUDGET_MS = 45_000;
@@ -58,10 +60,18 @@ export async function sendReminders(opts?: {
     take: 20,
   });
 
+  let activeMembers: Awaited<ReturnType<typeof db.user.findMany>> | null = null;
+
   for (const cls of due) {
     // Stay inside the serverless time limit; unfinished classes stay due and
     // are picked up by the next tick (reminderSentAt is only set after a pass).
     if (Date.now() > deadline) break;
+    // Never send "starts soon" for a class that is already over; mark it handled so it does not
+    // occupy a slot in the 20-class window forever.
+    if (istDateTime(cls.date, cls.endTime).getTime() <= now.getTime()) {
+      await db.yogaClass.update({ where: { id: cls.id }, data: { reminderSentAt: new Date() } });
+      continue;
+    }
     const detail = {
       classId: cls.id,
       date: cls.date,
@@ -71,17 +81,8 @@ export async function sendReminders(opts?: {
     };
     result.classesProcessed++;
 
-    // Active members: users with role STUDENT, status ACTIVE, and an ACTIVE
-    // subscription whose endDate is in the future (or null).
-    const activeMembers = await db.user.findMany({
-      where: {
-        role: "STUDENT",
-        status: "ACTIVE",
-        subscriptions: {
-          some: { status: "ACTIVE" },
-        },
-      },
-    });
+    // Active members: entitled per membership rules (paid order or live subscription).
+    activeMembers ??= await db.user.findMany({ where: activeMembersWhere(now) });
 
     for (const member of activeMembers) {
       if (Date.now() > deadline) break;
@@ -89,14 +90,15 @@ export async function sendReminders(opts?: {
         detail.skipped++;
         continue;
       }
-      // Idempotency: skip if we already sent for this (user, class).
+      // Idempotency: skip if any row exists for this (user, class, template): sent, in flight
+      // (QUEUED) or failed (the retry job owns failed rows).
       const existing = await db.whatsAppMessage.findFirst({
         where: {
           userId: member.id,
           classId: cls.id,
           templateName: WHATSAPP_TEMPLATE_NAME,
-          status: { in: ["SENT", "DELIVERED", "READ"] },
         },
+        select: { id: true },
       });
       if (existing) {
         detail.skipped++;
@@ -155,19 +157,18 @@ export async function sendReminders(opts?: {
   return result;
 }
 
-// Retry job: resend failed WhatsApp messages for classes whose reminderAt is
-// within the last 24h, bounded exponential backoff via attempts counter.
+// Retry job: resend failed WhatsApp messages (oldest first) for upcoming classes. Permanent
+// errors are skipped, attempts per (user, class, template) are capped, and each failed retry
+// is recorded as a new FAILED row while the superseded row becomes RETRIED, so the number of
+// FAILED + RETRIED rows is the attempt count.
 export async function retryFailedMessages(): Promise<{
   retried: number;
   recovered: number;
   stillFailing: number;
 }> {
-  const out: { retried: number; recovered: number; stillFailing: number } = {
-    retried: 0,
-    recovered: 0,
-    stillFailing: 0,
-  };
+  const out = { retried: 0, recovered: 0, stillFailing: 0 };
 
+  const now = new Date();
   const deadline = Date.now() + JOB_BUDGET_MS;
   const cutoff = new Date(Date.now() - 24 * 3600 * 1000);
   const failed = await db.whatsAppMessage.findMany({
@@ -175,38 +176,73 @@ export async function retryFailedMessages(): Promise<{
       status: "FAILED",
       classId: { not: null },
       createdAt: { gte: cutoff },
+      OR: [{ errorCode: null }, { errorCode: { notIn: [...NON_RETRYABLE_ERROR_CODES] } }],
+      yogaClass: { date: { gte: istDateString(now) } },
     },
-    include: { yogaClass: true, user: true },
-    take: 50,
+    include: { yogaClass: { include: { schedule: true } }, user: true },
+    orderBy: { createdAt: "asc" },
+    take: 100,
   });
 
   for (const msg of failed) {
     if (Date.now() > deadline) break;
+    const cls = msg.yogaClass;
+    if (!cls?.meetUrl || !msg.user?.whatsappNumber || msg.user.status !== "ACTIVE") continue;
+
+    const attempts = await db.whatsAppMessage.count({
+      where: {
+        userId: msg.userId,
+        classId: msg.classId,
+        templateName: msg.templateName,
+        status: { in: ["FAILED", "RETRIED"] },
+      },
+    });
+    const decision = decideRetry({
+      errorCode: msg.errorCode,
+      attempts,
+      classDate: cls.date,
+      classEndTime: cls.endTime,
+      now,
+    });
+    if (!decision.retry) continue;
+
     out.retried++;
-    if (!msg.yogaClass?.meetUrl || !msg.user?.whatsappNumber) {
-      out.stillFailing++;
-      continue;
-    }
     const send = await whatsapp.sendClassReminder({
       toWhatsapp: msg.user.whatsappNumber,
       templateName: msg.templateName,
       studentName: msg.user.name,
-      classTime: prettyTime(msg.yogaClass.startTime),
-      meetUrl: msg.yogaClass.meetUrl,
-      className: "Yoga Class",
+      classTime: prettyTime(cls.startTime),
+      meetUrl: cls.meetUrl,
+      className: cls.schedule?.name ?? "Yoga Class",
     });
+    if (send.status === "FAILED") {
+      out.stillFailing++;
+      await db.$transaction([
+        db.whatsAppMessage.create({
+          data: {
+            userId: msg.userId,
+            classId: msg.classId,
+            templateName: msg.templateName,
+            status: "FAILED",
+            errorCode: send.errorCode ?? null,
+            errorMessage: send.errorMessage ?? null,
+          },
+        }),
+        db.whatsAppMessage.update({ where: { id: msg.id }, data: { status: "RETRIED" } }),
+      ]);
+      continue;
+    }
     await db.whatsAppMessage.update({
       where: { id: msg.id },
       data: {
         status: send.status,
         providerMessageId: send.providerMessageId || null,
-        sentAt: send.status !== "FAILED" ? new Date() : null,
-        errorCode: send.errorCode ?? null,
-        errorMessage: send.errorMessage ?? null,
+        sentAt: new Date(),
+        errorCode: null,
+        errorMessage: null,
       },
     });
-    if (send.status === "FAILED") out.stillFailing++;
-    else out.recovered++;
+    out.recovered++;
   }
 
   return out;

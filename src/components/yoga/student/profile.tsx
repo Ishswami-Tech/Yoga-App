@@ -90,7 +90,7 @@ export function ProfileView() {
         the number below.
       </p>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         <ProfileForm key={formKey} profile={q.data} />
         <Card className="rounded-3xl shadow-soft">
           <CardContent className="p-6 space-y-4">
@@ -266,7 +266,7 @@ function ProfileSkeleton() {
         <div className="h-7 w-32 rounded-md bg-accent animate-pulse" />
         <div className="h-4 w-72 rounded-md bg-accent animate-pulse" />
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         <div className="md:col-span-2 h-72 rounded-3xl bg-accent animate-pulse" />
         <div className="h-72 rounded-3xl bg-accent animate-pulse" />
       </div>

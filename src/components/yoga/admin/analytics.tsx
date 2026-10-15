@@ -135,7 +135,7 @@ export function AnalyticsView() {
       />
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           icon={<IndianRupee className="h-5 w-5" />}
           label="Total revenue"
@@ -473,7 +473,7 @@ function KpiCard({
 function AnalyticsSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[0, 1, 2, 3].map((i) => (
           <Card key={i}>
             <CardContent className="p-5 space-y-2">

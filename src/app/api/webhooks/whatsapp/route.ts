@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { verifyMetaHandshake, verifyMetaSignature } from "@/lib/providers/whatsapp-webhook";
+import {
+  allowedPriorStatuses,
+  extractStatuses,
+  verifyMetaHandshake,
+  verifyMetaSignature,
+} from "@/lib/providers/whatsapp-webhook";
 
 export const runtime = "nodejs";
 
@@ -37,36 +42,30 @@ export async function POST(req: NextRequest) {
   if (!verifyMetaSignature(secret, raw, req.headers.get("x-hub-signature-256"))) {
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
-  let payload: any;
+  let payload: unknown;
   try {
     payload = JSON.parse(raw);
   } catch {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
 
-  const entry = payload?.entry?.[0]?.changes?.[0]?.value;
-  const status = entry?.statuses?.[0];
-  if (!status?.id) {
+  const statuses = extractStatuses(payload);
+  if (statuses.length === 0) {
     return NextResponse.json({ received: true, ignored: true });
   }
 
-  const map: Record<string, string> = {
-    sent: "SENT",
-    delivered: "DELIVERED",
-    read: "READ",
-    failed: "FAILED",
-  };
-  const mapped = map[status.status] ?? "SENT";
-
-  await db.whatsAppMessage.updateMany({
-    where: { providerMessageId: status.id },
-    data: {
-      status: mapped,
-      errorCode: status.errors?.[0]?.code ? String(status.errors[0].code) : null,
-      errorMessage: status.errors?.[0]?.title ?? null,
-      sentAt: mapped !== "FAILED" ? new Date() : undefined,
-    },
-  });
+  // One cheap updateMany per status; the `status in allowed priors` guard makes it forward-only and
+  // idempotent (replays and out-of-order callbacks match zero rows). Never overwrites READ or FAILED.
+  for (const s of statuses) {
+    await db.whatsAppMessage.updateMany({
+      where: { providerMessageId: s.id, status: { in: allowedPriorStatuses(s.status) } },
+      data: {
+        status: s.status,
+        ...(s.status === "FAILED" ? { errorCode: s.errorCode, errorMessage: s.errorMessage } : {}),
+        ...(s.status === "SENT" ? { sentAt: new Date() } : {}),
+      },
+    });
+  }
 
   return NextResponse.json({ received: true });
 }

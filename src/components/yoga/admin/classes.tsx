@@ -354,7 +354,7 @@ export function ClassesView() {
                       >
                         <TableCell></TableCell>
                         <TableCell colSpan={8}>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-2 text-sm">
+                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 py-2 text-sm">
                             <div>
                               <p className="text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
                                 Class ID

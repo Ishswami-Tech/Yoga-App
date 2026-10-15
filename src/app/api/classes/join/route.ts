@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { hasActiveMembership } from "@/lib/services/subscriptions";
-import { run, unauthorized, forbidden, notFound } from "@/lib/api";
+import { run, unauthorized, forbidden, notFound, fail } from "@/lib/api";
 import { audit } from "@/lib/services/audit";
+import { istDateTime } from "@/lib/services/scheduling";
 
 export const runtime = "nodejs";
+
+// Students may still open the link briefly after the scheduled end (over-run).
+const ENDED_GRACE_MS = 30 * 60_000;
 
 // Returns the Google Meet URL for a specific class. Access-controlled:
 // only ACTIVE members (or staff) receive the actual URL. The endpoint is
@@ -23,6 +27,19 @@ export async function GET(req: NextRequest) {
       include: { schedule: true },
     });
     if (!cls) return notFound("Class");
+    if (cls.status === "CANCELLED") {
+      return fail("This class was cancelled", 409, { code: "CLASS_CANCELLED" });
+    }
+    if (cls.status === "FAILED" || cls.status === "PENDING_MEET") {
+      return fail("The class link is not available", 409, { code: "CLASS_NOT_READY" });
+    }
+    // A finished class (completed, or past its end time) no longer hands out a link.
+    const ended =
+      cls.status === "COMPLETED" ||
+      Date.now() >= istDateTime(cls.date, cls.endTime).getTime() + ENDED_GRACE_MS;
+    if (ended) {
+      return fail("This class has ended", 409, { code: "CLASS_ENDED" });
+    }
     if (!cls.meetUrl) return notFound("Meet link");
 
     const active = await hasActiveMembership(user.id);
