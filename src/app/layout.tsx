@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
+import { TempsAnalytics } from "@/components/temps-analytics";
 
 import { APP_NAME } from "@/lib/brand";
 import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_TITLE, SITE_URL, organizationJsonLd } from "@/lib/seo";
@@ -72,7 +73,9 @@ export default function RootLayout({
       <body
         className={`${nunitoSans.variable} ${fraunces.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground`}
       >
-        <Providers>{children}</Providers>
+        <TempsAnalytics>
+          <Providers>{children}</Providers>
+        </TempsAnalytics>
         <Toaster />
         <SonnerToaster richColors position="top-right" />
       </body>
