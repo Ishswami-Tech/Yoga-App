@@ -1,15 +1,26 @@
-import { registerOTel } from "@vercel/otel";
 import * as Sentry from "@sentry/nextjs";
 
 export async function register() {
-  // Traces (no request bodies are recorded by default).
-  registerOTel({ serviceName: "vishwayog" });
-
-  if (process.env.NEXT_RUNTIME === "nodejs") {
-    await import("./sentry.server.config");
+  // Optional telemetry: a failure here must never block the app.
+  if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    try {
+      // Traces (no request bodies are recorded by default).
+      const { registerOTel } = await import("@vercel/otel");
+      registerOTel({ serviceName: "vishwayog" });
+    } catch (error) {
+      console.warn("[otel] tracing disabled:", error instanceof Error ? error.message : error);
+    }
   }
-  if (process.env.NEXT_RUNTIME === "edge") {
-    await import("./sentry.edge.config");
+
+  try {
+    if (process.env.NEXT_RUNTIME === "nodejs") {
+      await import("./sentry.server.config");
+    }
+    if (process.env.NEXT_RUNTIME === "edge") {
+      await import("./sentry.edge.config");
+    }
+  } catch (error) {
+    console.warn("[sentry] disabled:", error instanceof Error ? error.message : error);
   }
 }
 
