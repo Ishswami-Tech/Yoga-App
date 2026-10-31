@@ -1,0 +1,29 @@
+# Dependencies and generated output
+node_modules/
+.next/
+dist/
+build/
+coverage/
+graphify-out/
+.ccm/
+.cache/
+.vercel/
+
+# Secrets and local data
+.env
+.env.*
+!.env.example
+!.env.local.example
+*.log
+*.sqlite
+*.db
+
+# Generated and binary artifacts
+*.zip
+*.tgz
+*.gz
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.webp

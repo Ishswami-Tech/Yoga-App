@@ -68,3 +68,5 @@ playwright-report/
 # dev-only notes/tool output (contain dev secrets)
 worklog.md
 tool-results/
+.ccm/
+graphify-out/
