@@ -1,0 +1,24 @@
+# Used only by docker/Dockerfile (BuildKit picks up <Dockerfile>.dockerignore),
+# so it cannot change what the Temps git/nextjs build sees.
+.git
+.github
+node_modules
+.next
+out
+build
+coverage
+test-results
+playwright-report
+qa-shots
+graphify-out
+agent-ctx
+.agents
+.claude
+.cursor
+.zscripts
+.env
+.env.*
+!.env.example
+*.log
+.pgdata
+docker

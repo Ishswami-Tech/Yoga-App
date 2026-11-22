@@ -19,6 +19,10 @@ const csp = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // Standalone output only for the container image (docker/Dockerfile sets
+  // NEXT_OUTPUT=standalone). The Temps git/nextjs build and `next start` keep
+  // the default output, so they are unaffected.
+  ...(process.env.NEXT_OUTPUT === "standalone" ? { output: "standalone" as const } : {}),
   poweredByHeader: false,
   reactStrictMode: false,
   async headers() {

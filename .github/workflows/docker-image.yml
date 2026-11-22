@@ -1,0 +1,226 @@
+# Multi-arch container image for vishwayog (linux/amd64 + linux/arm64).
+#
+# Each platform builds natively on its own GitHub-hosted runner (ubuntu-latest
+# for amd64, ubuntu-24.04-arm for arm64): no QEMU. Every leg smoke-tests its own
+# image against a throwaway Postgres before pushing it by digest; the merge job
+# then publishes one multi-arch tag. Pull requests build and smoke-test only.
+#
+# Tags (ghcr.io/ishswami-tech/yoga-app):
+#   sha-<full sha>   every pushed commit, immutable (use this to deploy)
+#   <branch>         moving tag per branch
+#   latest           main only
+#
+# This workflow does NOT deploy. See docker/DEPLOY.md for the Temps procedure.
+#
+# NEXT_PUBLIC_* values are baked in at build time. Override the defaults with
+# repository variables (Settings > Secrets and variables > Actions > Variables)
+# of the same name.
+
+name: Docker image
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore:
+      - "**/*.md"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            arch: x86_64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            arch: aarch64
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image name and platform pair
+        id: image
+        run: |
+          echo "image=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          p='${{ matrix.platform }}'
+          echo "PLATFORM_PAIR=${p//\//-}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.image }}
+
+      - name: Build (load for smoke test)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: vishwayog:smoke
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: &build_args |
+            GIT_SHA=${{ github.sha }}
+            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL || 'https://www.shreevishwayogayurved.com' }}
+            NEXT_PUBLIC_APP_NAME=${{ vars.NEXT_PUBLIC_APP_NAME || 'Shree Vishwayog Ayurved' }}
+            NEXT_PUBLIC_SUPPORT_PHONE=${{ vars.NEXT_PUBLIC_SUPPORT_PHONE }}
+            NEXT_PUBLIC_SUPPORT_EMAIL=${{ vars.NEXT_PUBLIC_SUPPORT_EMAIL }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+          cache-from: type=gha,scope=build-${{ env.PLATFORM_PAIR }}
+          cache-to: type=gha,mode=max,ignore-error=true,scope=build-${{ env.PLATFORM_PAIR }}
+
+      - name: Smoke test (starts, serves, reaches Postgres)
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          docker network create smoke
+          docker run -d --name pg --network smoke \
+            -e POSTGRES_USER=smoke -e POSTGRES_PASSWORD=smoke -e POSTGRES_DB=smoke postgres:16-alpine
+          for i in $(seq 1 30); do docker exec pg pg_isready -U smoke >/dev/null 2>&1 && break; sleep 1; done
+          docker run -d --name app --network smoke -p 3000:3000 \
+            -e DATABASE_URL=postgresql://smoke:smoke@pg:5432/smoke \
+            -e AUTH_SECRET=smoke-test-secret-smoke-test-secret-0000 \
+            vishwayog:smoke
+          arch=$(docker exec app uname -m)
+          echo "container arch: $arch"
+          test "$arch" = "$EXPECTED_ARCH"
+          ok=
+          for i in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://127.0.0.1:3000/robots.txt; then ok=1; break; fi
+            sleep 1
+          done
+          if [ -z "$ok" ]; then docker logs app; exit 1; fi
+          curl -fsS -o /dev/null -w "GET / -> %{http_code}\n" http://127.0.0.1:3000/
+          health=$(curl -sS http://127.0.0.1:3000/api/health)
+          echo "health: $health"
+          # db=ok proves this platform's Prisma query engine loaded and connected.
+          echo "$health" | jq -e '.db == "ok"' >/dev/null
+          docker logs app 2>&1 | tail -n 20
+
+      - name: Smoke test cleanup
+        if: always()
+        run: docker rm -f app pg >/dev/null 2>&1 || true
+
+      - name: Push by digest
+        id: push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: *build_args
+          cache-from: type=gha,scope=build-${{ env.PLATFORM_PAIR }}
+          outputs: type=image,name=${{ steps.image.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p /tmp/digests
+          d='${{ steps.push.outputs.digest }}'
+          touch "/tmp/digests/${d#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: digests-${{ env.PLATFORM_PAIR }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Publish multi-arch tag
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Both platforms present
+        run: |
+          n=$(ls /tmp/digests | wc -l)
+          echo "digests: $n"
+          test "$n" -eq 2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ needs.build.outputs.image }}
+          tags: |
+            type=sha,format=long
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf "${IMAGE}@sha256:%s " *)
+
+      - name: Verify platforms and summarize
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+        run: |
+          set -euo pipefail
+          ref="${IMAGE}:sha-${GITHUB_SHA}"
+          docker buildx imagetools inspect "$ref"
+          platforms=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' \
+            | jq -r '[.manifests[].platform | select(.os != "unknown") | "\(.os)/\(.architecture)"] | sort | join(",")')
+          echo "platforms: $platforms"
+          test "$platforms" = "linux/amd64,linux/arm64"
+          {
+            echo "## Image"
+            echo
+            echo "\`$ref\`"
+            echo
+            echo "Platforms: $platforms"
+          } >> "$GITHUB_STEP_SUMMARY"
