@@ -30,8 +30,8 @@ COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY prisma ./prisma
-# Hoisted (flat) node_modules: the isolated linker that bun picks by default for
-# this lockfile breaks Turbopack's next/font resolution and standalone tracing.
+# Hoisted (flat) node_modules keep Next's standalone file tracing simple
+# (no symlinked package store to follow).
 RUN bun install --frozen-lockfile --linker=hoisted
 
 # ---------------------------------------------------------------------------
@@ -53,7 +53,14 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL} \
     NEXT_OUTPUT=standalone \
     NODE_ENV=production
 COPY . .
-RUN bun run build \
+# next/font/google downloads the font files during the build, and those
+# downloads fail intermittently on CI runners ("next/font/google queries have
+# exactly one entry"). Retry the build a few times before giving up.
+RUN for attempt in 1 2 3; do \
+      bun run build && break; \
+      if [ "$attempt" = 3 ]; then exit 1; fi; \
+      echo "next build attempt $attempt failed; retrying in 15s"; sleep 15; \
+    done \
  && test -f .next/standalone/server.js
 
 # ---------------------------------------------------------------------------
